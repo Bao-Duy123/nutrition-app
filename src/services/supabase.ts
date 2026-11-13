@@ -1,6 +1,7 @@
 import 'react-native-url-polyfill/auto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient, User } from '@supabase/supabase-js';
+import { Platform } from 'react-native';
 import { CONFIG } from '../constants/config';
 import { Profile, Food, DailyMeal, WeightHistory, MealTimeType } from '../types/database';
 
@@ -10,7 +11,7 @@ export const supabase = createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_K
     storage: AsyncStorage,
     autoRefreshToken: true,
     persistSession: true,
-    detectSessionInUrl: false,
+    detectSessionInUrl: Platform.OS === 'web',
   },
 });
 

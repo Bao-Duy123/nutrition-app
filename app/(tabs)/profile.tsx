@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'expo-router';
 import { YStack, XStack, Text, Button, Input, ScrollView, Spinner, View } from 'tamagui';
-import { Alert } from 'react-native';
 import { useAppDispatch, useAppSelector } from '../../src/store';
 import { setProfile, clearAuth } from '../../src/store/slices/authSlice';
-import { setDailyCalorieGoal } from '../../src/store/slices/dietSlice';
+import { setDailyCalorieGoal, setTodayMeals } from '../../src/store/slices/dietSlice';
+import { CONFIG } from '../../src/constants/config';
 import {
   getUserProfile,
   logSupabaseError,
@@ -14,6 +14,7 @@ import {
 } from '../../src/services/supabase';
 import { calculateBMR, calculateTDEE, calculateSuggestedCalorie } from '../../src/utils/calculateMacro';
 import { THEME } from '../../src/constants/theme';
+import { showAlert } from '../../src/utils/showAlert';
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -90,15 +91,15 @@ export default function ProfileScreen() {
       const { data, error } = await updateUserProfile(userId, updates);
 
       if (error) {
-        Alert.alert('Lỗi cập nhật', error.message);
+        showAlert('Lỗi cập nhật', error.message);
       } else if (data) {
         dispatch(setProfile(data));
         dispatch(setDailyCalorieGoal(newCalorieGoal));
         setIsEditing(false);
-        Alert.alert('Thành công', 'Thông tin cá nhân đã được lưu cập nhật!');
+        showAlert('Thành công', 'Thông tin cá nhân đã được lưu cập nhật!');
       }
     } catch (err: any) {
-      Alert.alert('Lỗi', err.message || 'Không thể lưu thay đổi');
+      showAlert('Lỗi', err.message || 'Không thể lưu thay đổi');
     } finally {
       setSaving(false);
     }
@@ -106,7 +107,7 @@ export default function ProfileScreen() {
 
   // Đăng xuất
   const handleSignOut = async () => {
-    Alert.alert('Xác nhận đăng xuất', 'Bạn có chắc chắn muốn đăng xuất khỏi ứng dụng?', [
+    showAlert('Xác nhận đăng xuất', 'Bạn có chắc chắn muốn đăng xuất khỏi ứng dụng?', [
       { text: 'Hủy', style: 'cancel' },
       {
         text: 'Đăng xuất',
@@ -115,13 +116,15 @@ export default function ProfileScreen() {
           try {
             const { error } = await supabase.auth.signOut();
             if (error) {
-              Alert.alert('Không thể đăng xuất', logSupabaseError('auth.signOut', error));
+              showAlert('Không thể đăng xuất', logSupabaseError('auth.signOut', error));
               return;
             }
             dispatch(clearAuth());
+            dispatch(setTodayMeals([]));
+            dispatch(setDailyCalorieGoal(CONFIG.DEFAULT_DAILY_CALORIE_GOAL));
             router.replace('/login');
           } catch (error) {
-            Alert.alert('Lỗi', logUnexpectedError('auth.signOut', error));
+            showAlert('Lỗi', logUnexpectedError('auth.signOut', error));
           }
         },
       },

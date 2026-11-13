@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Button, Input, ScrollView, Text, View, XStack, YStack } from 'tamagui';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { CustomButton } from '../src/components/CustomButton';
 import { THEME } from '../src/constants/theme';
 import {
@@ -15,6 +15,7 @@ import { useAppDispatch } from '../src/store';
 import { setProfile, setSession } from '../src/store/slices/authSlice';
 import { setDailyCalorieGoal } from '../src/store/slices/dietSlice';
 import { calculateBMR, calculateSuggestedCalorie, calculateTDEE } from '../src/utils/calculateMacro';
+import { showAlert } from '../src/utils/showAlert';
 
 export default function RegisterScreen() {
   const router = useRouter();
@@ -42,23 +43,23 @@ export default function RegisterScreen() {
     const parsedTargetWeight = Number(targetWeight);
 
     if (!fullName.trim() || !normalizedEmail || !password || !confirmPassword) {
-      Alert.alert('Thiếu thông tin', 'Vui lòng điền đầy đủ họ tên, email và mật khẩu.');
+      showAlert('Thiếu thông tin', 'Vui lòng điền đầy đủ họ tên, email và mật khẩu.');
       return;
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
-      Alert.alert('Email không hợp lệ', 'Vui lòng kiểm tra lại địa chỉ email.');
+      showAlert('Email không hợp lệ', 'Vui lòng kiểm tra lại địa chỉ email.');
       return;
     }
     if (password.length < 8) {
-      Alert.alert('Mật khẩu chưa đủ mạnh', 'Mật khẩu cần có ít nhất 8 ký tự.');
+      showAlert('Mật khẩu chưa đủ mạnh', 'Mật khẩu cần có ít nhất 8 ký tự.');
       return;
     }
     if (password !== confirmPassword) {
-      Alert.alert('Mật khẩu không khớp', 'Vui lòng nhập lại mật khẩu xác nhận.');
+      showAlert('Mật khẩu không khớp', 'Vui lòng nhập lại mật khẩu xác nhận.');
       return;
     }
     if (!acceptedTerms) {
-      Alert.alert('Cần xác nhận', 'Vui lòng đồng ý với điều khoản để tiếp tục.');
+      showAlert('Cần xác nhận', 'Vui lòng đồng ý với điều khoản để tiếp tục.');
       return;
     }
     if (
@@ -67,7 +68,7 @@ export default function RegisterScreen() {
       !Number.isFinite(parsedWeight) || parsedWeight <= 0 ||
       !Number.isFinite(parsedTargetWeight) || parsedTargetWeight <= 0
     ) {
-      Alert.alert('Thông số chưa hợp lệ', 'Kiểm tra lại tuổi, chiều cao và cân nặng.');
+      showAlert('Thông số chưa hợp lệ', 'Kiểm tra lại tuổi, chiều cao và cân nặng.');
       return;
     }
 
@@ -93,7 +94,7 @@ export default function RegisterScreen() {
 
       if (error) {
         const detail = logSupabaseError('auth.signUp', error);
-        Alert.alert('Đăng ký thất bại', detail);
+        showAlert('Đăng ký thất bại', detail);
         return;
       }
 
@@ -101,7 +102,7 @@ export default function RegisterScreen() {
         console.error('[Supabase][auth.signUp] Signup succeeded without a user object.', {
           hasSession: Boolean(data.session),
         });
-        Alert.alert(
+        showAlert(
           'Đăng ký chưa hoàn tất',
           'Supabase không trả về tài khoản. Kiểm tra cấu hình Auth và log [Supabase][auth.signUp].'
         );
@@ -109,7 +110,7 @@ export default function RegisterScreen() {
       }
 
       if (data.user.identities?.length === 0) {
-        Alert.alert(
+        showAlert(
           'Email đã được đăng ký',
           'Email này đã có tài khoản. Hãy đăng nhập hoặc dùng chức năng Quên mật khẩu.',
           [{ text: 'Đến đăng nhập', onPress: () => router.replace('/login') }]
@@ -118,7 +119,7 @@ export default function RegisterScreen() {
       }
 
       if (!data.session) {
-        Alert.alert(
+        showAlert(
           'Kiểm tra email để xác nhận',
           'Tài khoản đã tạo. Hãy xác nhận email, sau đó đăng nhập. Hồ sơ sức khỏe sẽ được lưu tự động sau lần đăng nhập đầu tiên.',
           [{ text: 'Đến đăng nhập', onPress: () => router.replace('/login') }]
@@ -134,7 +135,7 @@ export default function RegisterScreen() {
         const detail = profileError
           ? formatSupabaseError(profileError)
           : 'Supabase không trả về hồ sơ sau khi lưu. Kiểm tra log [Supabase][profiles.upsert].';
-        Alert.alert(
+        showAlert(
           'Tài khoản đã tạo nhưng chưa lưu được hồ sơ',
           detail,
           [{ text: 'Đến đăng nhập', onPress: () => router.replace('/login') }]
@@ -147,7 +148,7 @@ export default function RegisterScreen() {
       dispatch(setDailyCalorieGoal(dailyCalorieGoal));
       router.replace('/(tabs)');
     } catch (error) {
-      Alert.alert('Lỗi hệ thống', logUnexpectedError('auth.signUp', error));
+      showAlert('Lỗi hệ thống', logUnexpectedError('auth.signUp', error));
     } finally {
       setLoading(false);
     }
@@ -156,12 +157,15 @@ export default function RegisterScreen() {
   const goalOptions = ['Giảm cân', 'Giữ cân', 'Tăng cân'];
 
   return (
-    <ScrollView
-      backgroundColor={THEME.colors.background}
-      contentContainerStyle={{ flexGrow: 1, padding: 24, paddingBottom: 36 }}
-      keyboardShouldPersistTaps="handled"
-    >
-      <YStack gap="$4">
+    <SafeAreaView style={{ flex: 1, backgroundColor: THEME.colors.background }} edges={['top', 'left', 'right']}>
+      <ScrollView
+        flex={1}
+        backgroundColor={THEME.colors.background}
+        contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24 }}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+      <YStack width="100%" maxWidth={520} alignSelf="center" gap="$3">
         <XStack justifyContent="space-between" alignItems="center">
           <Button
             circular
@@ -211,7 +215,7 @@ export default function RegisterScreen() {
           <Text fontSize={25} fontWeight="800" color={THEME.colors.textMain}>
             Tạo tài khoản mới
           </Text>
-          <Text fontSize={14} color={THEME.colors.textMuted} lineHeight={21}>
+          <Text fontSize={14} color={THEME.colors.textMuted} lineHeight={1.5}>
             Bắt đầu hành trình theo dõi calo và quản lý cân nặng khoa học ngay hôm nay.
           </Text>
         </YStack>
@@ -321,21 +325,20 @@ export default function RegisterScreen() {
             title="Tiếp tục thiết lập hồ sơ  →"
             onPress={() => {
               if (!fullName.trim() || !email.trim() || !password || !confirmPassword) {
-                Alert.alert('Thiếu thông tin', 'Vui lòng điền họ tên, email và mật khẩu.');
+                showAlert('Thiếu thông tin', 'Vui lòng điền họ tên, email và mật khẩu.');
                 return;
               }
               if (password.length < 8 || password !== confirmPassword) {
-                Alert.alert('Kiểm tra mật khẩu', 'Mật khẩu cần đủ 8 ký tự và khớp với phần xác nhận.');
+                showAlert('Kiểm tra mật khẩu', 'Mật khẩu cần đủ 8 ký tự và khớp với phần xác nhận.');
                 return;
               }
               if (!acceptedTerms) {
-                Alert.alert('Cần xác nhận', 'Vui lòng đồng ý với điều khoản để tiếp tục.');
+                showAlert('Cần xác nhận', 'Vui lòng đồng ý với điều khoản để tiếp tục.');
                 return;
               }
               setShowHealthProfile(true);
             }}
             size="large"
-            variant="secondary"
           />
         </YStack>
 
@@ -444,6 +447,7 @@ export default function RegisterScreen() {
           </Button>
         </XStack>
       </YStack>
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
