@@ -1,7 +1,12 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'expo-router';
-import { Alert } from 'react-native';
+import { Platform } from 'react-native';
 import { Button, Input, ScrollView, Text, View, XStack, YStack } from 'tamagui';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { makeRedirectUri } from 'expo-auth-session';
+import * as WebBrowser from 'expo-web-browser';
+import type { Session } from '@supabase/supabase-js';
 import { CustomButton } from '../src/components/CustomButton';
 import { CONFIG } from '../src/constants/config';
 import { THEME } from '../src/constants/theme';
@@ -15,6 +20,9 @@ import {
 import { useAppDispatch } from '../src/store';
 import { setProfile, setSession } from '../src/store/slices/authSlice';
 import { setDailyCalorieGoal } from '../src/store/slices/dietSlice';
+import { showAlert } from '../src/utils/showAlert';
+
+WebBrowser.maybeCompleteAuthSession();
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -23,15 +31,61 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [rememberEmail, setRememberEmail] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    AsyncStorage.getItem('saved-login-email')
+      .then((savedEmail) => {
+        if (active && savedEmail) {
+          setEmail(savedEmail);
+          setRememberEmail(true);
+        }
+      })
+      .catch((error) => logUnexpectedError('auth.loadSavedEmail', error));
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const completeLogin = async (session: Session) => {
+    dispatch(setSession(session));
+    try {
+      if (rememberEmail) {
+        await AsyncStorage.setItem('saved-login-email', email.trim().toLowerCase());
+      } else {
+        await AsyncStorage.removeItem('saved-login-email');
+      }
+    } catch (error) {
+      logUnexpectedError('auth.saveRememberedEmail', error);
+    }
+
+    const { data: profile, error: profileError } = await ensureUserProfile(session.user);
+    dispatch(setProfile(profile));
+    dispatch(setDailyCalorieGoal(profile?.daily_calorie_goal ?? CONFIG.DEFAULT_DAILY_CALORIE_GOAL));
+
+    if (profileError) {
+      showAlert(
+        'Đăng nhập được nhưng chưa tải được hồ sơ',
+        `Phiên đăng nhập hợp lệ nhưng hồ sơ chưa thể đọc/tạo.\n\n${formatSupabaseError(profileError)}`,
+        [{ text: 'Vào Dashboard', onPress: () => router.replace('/(tabs)') }]
+      );
+      return;
+    }
+
+    router.replace('/(tabs)');
+  };
 
   const handleLogin = async () => {
+    if (loading || googleLoading) return;
     const normalizedEmail = email.trim().toLowerCase();
     if (!normalizedEmail || !password) {
-      Alert.alert('Thiếu thông tin', 'Vui lòng nhập email và mật khẩu.');
+      showAlert('Thiếu thông tin', 'Vui lòng nhập email và mật khẩu.');
       return;
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
-      Alert.alert('Email không hợp lệ', 'Kiểm tra lại địa chỉ email rồi thử lại.');
+      showAlert('Email không hợp lệ', 'Kiểm tra lại địa chỉ email rồi thử lại.');
       return;
     }
 
@@ -43,7 +97,7 @@ export default function LoginScreen() {
       });
 
       if (error) {
-        Alert.alert('Đăng nhập thất bại', logSupabaseError('auth.signInWithPassword', error));
+        showAlert('Đăng nhập thất bại', logSupabaseError('auth.signInWithPassword', error));
         return;
       }
 
@@ -52,65 +106,127 @@ export default function LoginScreen() {
           hasSession: Boolean(data.session),
           hasUser: Boolean(data.user),
         });
-        Alert.alert(
+        showAlert(
           'Đăng nhập chưa hoàn tất',
           'Supabase không trả về phiên đăng nhập. Kiểm tra cấu hình Auth và log [Supabase][auth.signInWithPassword].'
         );
         return;
       }
 
-      dispatch(setSession(data.session));
-      const { data: profile, error: profileError } = await ensureUserProfile(data.user);
-      dispatch(setProfile(profile));
-      dispatch(setDailyCalorieGoal(profile?.daily_calorie_goal ?? CONFIG.DEFAULT_DAILY_CALORIE_GOAL));
+      await completeLogin(data.session);
+    } catch (error) {
+      showAlert('Lỗi hệ thống', logUnexpectedError('auth.signInWithPassword', error));
+    } finally {
+      setLoading(false);
+    }
+  };
 
-      if (profileError) {
-        Alert.alert(
-          'Đăng nhập được nhưng chưa tải được hồ sơ',
-          `Phiên đăng nhập hợp lệ nhưng hồ sơ chưa thể đọc/tạo.\n\n${formatSupabaseError(profileError)}`,
-          [{ text: 'Vào Dashboard', onPress: () => router.replace('/(tabs)') }]
+  const handleGoogleLogin = async () => {
+    if (loading || googleLoading) return;
+    try {
+      setGoogleLoading(true);
+      const redirectTo = Platform.OS === 'web'
+        ? window.location.origin
+        : makeRedirectUri({ scheme: 'nutritionapp', path: 'auth/callback' });
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo, skipBrowserRedirect: true },
+      });
+
+      if (error) {
+        showAlert('Không thể đăng nhập Google', logSupabaseError('auth.googleOAuth.start', error));
+        return;
+      }
+      if (!data.url) {
+        showAlert('Không thể đăng nhập Google', 'Supabase không trả về liên kết OAuth.');
+        return;
+      }
+
+      if (Platform.OS === 'web') {
+        window.location.assign(data.url);
+        return;
+      }
+
+      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+      if (result.type !== 'success') return;
+
+      const callbackUrl = new URL(result.url);
+      const callbackError =
+        callbackUrl.searchParams.get('error_description') ?? callbackUrl.searchParams.get('error');
+      if (callbackError) {
+        showAlert(
+          'Đăng nhập Google thất bại',
+          logSupabaseError('auth.googleOAuth.callback', { message: callbackError })
         );
         return;
       }
 
-      router.replace('/(tabs)');
+      const code = callbackUrl.searchParams.get('code');
+      if (!code) {
+        const oauthError = { message: 'OAuth callback did not contain an authorization code.' };
+        console.error('[Supabase][auth.googleOAuth.callback]', oauthError);
+        showAlert(
+          'Đăng nhập Google chưa hoàn tất',
+          `${formatSupabaseError(oauthError)}\n\nKiểm tra Redirect URLs trong Supabase Auth.`
+        );
+        return;
+      }
+
+      const { data: sessionData, error: exchangeError } =
+        await supabase.auth.exchangeCodeForSession(code);
+      if (exchangeError) {
+        showAlert(
+          'Không thể tạo phiên đăng nhập',
+          logSupabaseError('auth.googleOAuth.exchangeCodeForSession', exchangeError)
+        );
+        return;
+      }
+      if (!sessionData.session) {
+        showAlert('Đăng nhập Google chưa hoàn tất', 'Supabase không trả về phiên đăng nhập.');
+        return;
+      }
+
+      await completeLogin(sessionData.session);
     } catch (error) {
-      Alert.alert('Lỗi hệ thống', logUnexpectedError('auth.signInWithPassword', error));
+      showAlert('Lỗi đăng nhập Google', logUnexpectedError('auth.googleOAuth', error));
     } finally {
-      setLoading(false);
+      setGoogleLoading(false);
     }
   };
 
   const handleForgotPassword = async () => {
     const normalizedEmail = email.trim().toLowerCase();
     if (!normalizedEmail) {
-      Alert.alert('Quên mật khẩu', 'Nhập email để nhận liên kết đặt lại mật khẩu.');
+      showAlert('Quên mật khẩu', 'Nhập email để nhận liên kết đặt lại mật khẩu.');
       return;
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
-      Alert.alert('Email không hợp lệ', 'Kiểm tra lại địa chỉ email rồi thử lại.');
+      showAlert('Email không hợp lệ', 'Kiểm tra lại địa chỉ email rồi thử lại.');
       return;
     }
 
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail);
       if (error) {
-        Alert.alert('Không thể gửi email', logSupabaseError('auth.resetPasswordForEmail', error));
+        showAlert('Không thể gửi email', logSupabaseError('auth.resetPasswordForEmail', error));
         return;
       }
-      Alert.alert('Đã gửi email', 'Kiểm tra hộp thư để đặt lại mật khẩu.');
+      showAlert('Đã gửi email', 'Kiểm tra hộp thư để đặt lại mật khẩu.');
     } catch (error) {
-      Alert.alert('Lỗi hệ thống', logUnexpectedError('auth.resetPasswordForEmail', error));
+      showAlert('Lỗi hệ thống', logUnexpectedError('auth.resetPasswordForEmail', error));
     }
   };
 
   return (
-    <ScrollView
-      backgroundColor={THEME.colors.background}
-      contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 24 }}
-      keyboardShouldPersistTaps="handled"
-    >
-      <YStack gap="$5">
+    <SafeAreaView style={{ flex: 1, backgroundColor: THEME.colors.background }} edges={['top', 'left', 'right']}>
+      <ScrollView
+        flex={1}
+        backgroundColor={THEME.colors.background}
+        contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24 }}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <YStack width="100%" maxWidth={440} alignSelf="center" gap="$3">
         <XStack justifyContent="space-between" alignItems="center">
           <Button
             circular
@@ -145,7 +261,7 @@ export default function LoginScreen() {
           </Button>
         </XStack>
 
-        <YStack alignItems="center" gap="$3" paddingTop="$2">
+        <YStack alignItems="center" gap="$2" paddingTop="$1">
           <View
             width={64}
             height={64}
@@ -169,7 +285,7 @@ export default function LoginScreen() {
           <Text fontSize={26} fontWeight="800" color={THEME.colors.textMain} textAlign="center">
             Chào mừng trở lại!
           </Text>
-          <Text fontSize={14} color={THEME.colors.textMuted} textAlign="center" lineHeight={21}>
+          <Text fontSize={14} color={THEME.colors.textMuted} textAlign="center" lineHeight={1.5}>
             Đăng nhập để tiếp tục theo dõi lộ trình dinh dưỡng và mục tiêu của bạn.
           </Text>
         </YStack>
@@ -231,7 +347,31 @@ export default function LoginScreen() {
             </XStack>
           </YStack>
 
-          <XStack justifyContent="flex-end">
+          <XStack alignItems="center" justifyContent="space-between">
+            <Button
+              backgroundColor="transparent"
+              borderWidth={0}
+              padding={0}
+              alignItems="center"
+              gap="$2"
+              onPress={() => setRememberEmail((remember) => !remember)}
+            >
+              <XStack alignItems="center" gap="$2">
+                <View
+                  width={20}
+                  height={20}
+                  borderRadius={5}
+                  borderWidth={1}
+                  borderColor={rememberEmail ? THEME.colors.primary : THEME.colors.border}
+                  backgroundColor={rememberEmail ? THEME.colors.primary : '#FFFFFF'}
+                  alignItems="center"
+                  justifyContent="center"
+                >
+                  {rememberEmail && <Text color="#FFFFFF" fontSize={13}>✓</Text>}
+                </View>
+                <Text fontSize={13} color={THEME.colors.textMain}>Ghi nhớ email</Text>
+              </XStack>
+            </Button>
             <Button backgroundColor="transparent" borderWidth={0} paddingHorizontal={0} onPress={handleForgotPassword}>
               <Text fontSize={12} fontWeight="700" color={THEME.colors.primaryDark}>
                 Quên mật khẩu?
@@ -243,15 +383,26 @@ export default function LoginScreen() {
             title="Đăng nhập ngay  →"
             onPress={handleLogin}
             loading={loading}
+            disabled={googleLoading}
             size="large"
           />
         </YStack>
 
-        <XStack alignItems="center" gap="$3">
+        <XStack alignItems="center" gap="$3" paddingTop="$1">
           <View flex={1} height={1} backgroundColor={THEME.colors.border} />
           <Text fontSize={11} color={THEME.colors.textMuted}>HOẶC TIẾP TỤC VỚI</Text>
           <View flex={1} height={1} backgroundColor={THEME.colors.border} />
         </XStack>
+
+        <CustomButton
+          title="Tiếp tục với Google"
+          onPress={handleGoogleLogin}
+          loading={googleLoading}
+          disabled={loading}
+          variant="outline"
+          size="medium"
+          icon={<Text color="#4285F4" fontSize={19} fontWeight="800">G</Text>}
+        />
 
         <XStack justifyContent="center" gap="$2">
           <Text fontSize={14} color={THEME.colors.textMuted}>Chưa có tài khoản?</Text>
@@ -263,13 +414,14 @@ export default function LoginScreen() {
         <View
           alignSelf="center"
           paddingHorizontal="$3"
-          paddingVertical="$2"
+          paddingVertical="$1"
           backgroundColor={THEME.colors.primaryLight}
           borderRadius={THEME.radius.full}
         >
           <Text fontSize={11} color={THEME.colors.textMuted}>● Bảo mật bởi Supabase Auth</Text>
         </View>
-      </YStack>
-    </ScrollView>
+        </YStack>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
