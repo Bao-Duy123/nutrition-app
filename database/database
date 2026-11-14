@@ -1,0 +1,338 @@
+  -- ==================================================================================
+    -- PHẦN 0: XÓA SẠCH SẼ TOÀN BỘ BẢNG CŨ (CLEAN RESET)
+    -- ==================================================================================
+    DROP TABLE IF EXISTS public.daily_meals CASCADE;
+    DROP TABLE IF EXISTS public.weight_history CASCADE;
+    DROP TABLE IF EXISTS public.user_recipes CASCADE;
+    DROP TABLE IF EXISTS public.water_logs CASCADE;
+    DROP TABLE IF EXISTS public.user_reminders CASCADE;
+    DROP TABLE IF EXISTS public.user_favorite_foods CASCADE;
+    DROP TABLE IF EXISTS public.ai_nutrition_logs CASCADE;
+    DROP TABLE IF EXISTS public.user_devices CASCADE;
+    DROP TABLE IF EXISTS public.foods CASCADE;
+    DROP TABLE IF EXISTS public.profiles CASCADE;
+
+    -- ==================================================================================
+    -- PHẦN 1: TẠO 10 BẢNG CHUẨN ĐÁP ỨNG 100% NGHIỆP VỤ CỦA 13 ẢNH MOCKUP
+    -- ==================================================================================
+
+    -- 1.1. Bảng Profiles (Hồ sơ người dùng & Chỉ số sinh trắc học BMR, TDEE)
+    CREATE TABLE public.profiles (
+      id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+      full_name TEXT,
+      avatar_url TEXT,
+      gender TEXT DEFAULT 'Nam',
+      age INTEGER DEFAULT 25,
+      height NUMERIC(5, 1) DEFAULT 170.0,
+      current_weight NUMERIC(5, 2) DEFAULT 70.0,
+      target_weight NUMERIC(5, 2) DEFAULT 65.0,
+      activity_level TEXT DEFAULT 'light',
+      bmr NUMERIC(7, 1) DEFAULT 1628.0,
+      tdee NUMERIC(7, 1) DEFAULT 2239.0,
+      daily_calorie_goal NUMERIC(7, 1) DEFAULT 1739.0,
+      goal_type TEXT DEFAULT 'Giảm cân',
+      target_days INTEGER DEFAULT 60,
+      subscription_tier TEXT DEFAULT 'Pro',
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    -- 1.2. Bảng Foods (Kho thực phẩm món quán & nguyên liệu thô cân gram)
+    CREATE TABLE public.foods (
+      id BIGSERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      food_type TEXT DEFAULT 'restaurant_dish',
+      category TEXT DEFAULT 'pho',
+      region TEXT DEFAULT 'Toàn quốc',
+      serving_size TEXT NOT NULL DEFAULT '1 Tô tiêu chuẩn',
+      calories NUMERIC(7, 1) NOT NULL DEFAULT 0,
+      protein NUMERIC(6, 2) NOT NULL DEFAULT 0,
+      carbs NUMERIC(6, 2) NOT NULL DEFAULT 0,
+      fat NUMERIC(6, 2) NOT NULL DEFAULT 0,
+      fiber NUMERIC(6, 2) DEFAULT 0,
+      sodium NUMERIC(7, 2) DEFAULT 0,
+      special_label TEXT DEFAULT 'Tô Lớn / Đặc Biệt',
+      special_calories NUMERIC(7, 1),
+      special_protein NUMERIC(6, 2),
+      special_carbs NUMERIC(6, 2),
+      special_fat NUMERIC(6, 2),
+      toppings JSONB DEFAULT '[]'::jsonb,
+      icon TEXT DEFAULT '🍽️',
+      image_url TEXT,
+      is_custom BOOLEAN DEFAULT FALSE,
+      created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    -- 1.3. Bảng Daily_Meals (Nhật ký bữa ăn từng buổi)
+    CREATE TABLE public.daily_meals (
+      id BIGSERIAL PRIMARY KEY,
+      user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+      food_id BIGINT REFERENCES public.foods(id) ON DELETE SET NULL,
+      dish_name TEXT,
+      meal_time TEXT NOT NULL DEFAULT 'Trưa',
+      meal_source TEXT DEFAULT 'eating_out',
+      quantity NUMERIC(4, 2) DEFAULT 1.0,
+      serving_size TEXT DEFAULT '1 phần',
+      calories NUMERIC(7, 1) NOT NULL DEFAULT 0,
+      protein NUMERIC(6, 2) NOT NULL DEFAULT 0,
+      carbs NUMERIC(6, 2) NOT NULL DEFAULT 0,
+      fat NUMERIC(6, 2) NOT NULL DEFAULT 0,
+      fiber NUMERIC(6, 2) DEFAULT 0,
+      sodium NUMERIC(7, 2) DEFAULT 0,
+      items_detail JSONB DEFAULT '{}'::jsonb,
+      image_url TEXT,
+      consumed_time TIME DEFAULT CURRENT_TIME,
+      consumed_date DATE NOT NULL DEFAULT CURRENT_DATE,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    -- 1.4. Bảng Weight_History (Tiến trình cân nặng theo ngày)
+    CREATE TABLE public.weight_history (
+      id BIGSERIAL PRIMARY KEY,
+      user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+      weight NUMERIC(5, 2) NOT NULL,
+      recorded_date DATE NOT NULL DEFAULT CURRENT_DATE,
+      notes TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE (user_id, recorded_date)
+    );
+
+    -- 1.5. Bảng User_Recipes (Sổ tay công thức món tự nấu)
+    CREATE TABLE public.user_recipes (
+      id BIGSERIAL PRIMARY KEY,
+      user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+      recipe_name TEXT NOT NULL,
+      cooking_method TEXT DEFAULT 'none',
+      total_weight NUMERIC(7, 2) NOT NULL DEFAULT 0,
+      total_calories NUMERIC(7, 1) NOT NULL DEFAULT 0,
+      protein NUMERIC(6, 2) NOT NULL DEFAULT 0,
+      carbs NUMERIC(6, 2) NOT NULL DEFAULT 0,
+      fat NUMERIC(6, 2) NOT NULL DEFAULT 0,
+      ingredients_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    -- 1.6. Bảng Water_Logs (Theo dõi lượng nước uống)
+    CREATE TABLE public.water_logs (
+      id BIGSERIAL PRIMARY KEY,
+      user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+      amount_ml INTEGER NOT NULL DEFAULT 250,
+      consumed_date DATE NOT NULL DEFAULT CURRENT_DATE,
+      consumed_time TIME DEFAULT CURRENT_TIME,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    -- 1.7. Bảng User_Reminders (Cấu hình thông báo & nhắc nhở)
+    CREATE TABLE public.user_reminders (
+      user_id UUID PRIMARY KEY REFERENCES public.profiles(id) ON DELETE CASCADE,
+      all_notifications_enabled BOOLEAN DEFAULT TRUE,
+      water_reminder_enabled BOOLEAN DEFAULT TRUE,
+      water_interval_hours NUMERIC(3, 1) DEFAULT 2.0,
+      water_start_time TIME DEFAULT '07:00:00',
+      water_end_time TIME DEFAULT '21:30:00',
+      water_sound_and_vibrate BOOLEAN DEFAULT TRUE,
+      breakfast_reminder_enabled BOOLEAN DEFAULT TRUE,
+      breakfast_time TIME DEFAULT '08:00:00',
+      lunch_reminder_enabled BOOLEAN DEFAULT TRUE,
+      lunch_time TIME DEFAULT '12:30:00',
+      dinner_reminder_enabled BOOLEAN DEFAULT TRUE,
+      dinner_time TIME DEFAULT '19:30:00',
+      snack_reminder_enabled BOOLEAN DEFAULT FALSE,
+      snack_time TIME DEFAULT '15:30:00',
+      weight_reminder_enabled BOOLEAN DEFAULT TRUE,
+      weight_day_of_week TEXT DEFAULT 'Chủ Nhật',
+      weight_time TIME DEFAULT '07:30:00',
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    -- 1.8. Bảng User_Favorite_Foods (Món ăn yêu thích / Bookmark)
+    CREATE TABLE public.user_favorite_foods (
+      id BIGSERIAL PRIMARY KEY,
+      user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+      food_id BIGINT REFERENCES public.foods(id) ON DELETE CASCADE,
+      custom_name TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE (user_id, food_id)
+    );
+
+    -- 1.9. Bảng AI_Nutrition_Logs (Lịch sử bóc tách Gemini Pro AI)
+    CREATE TABLE public.ai_nutrition_logs (
+      id BIGSERIAL PRIMARY KEY,
+      user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+      raw_input_text TEXT NOT NULL,
+      parsed_result JSONB NOT NULL,
+      estimated_calories NUMERIC(7, 1),
+      accuracy_rate NUMERIC(4, 1) DEFAULT 96.0,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    -- 1.10. Bảng User_Devices (Quản lý thiết bị đồng bộ & push tokens)
+    CREATE TABLE public.user_devices (
+      id BIGSERIAL PRIMARY KEY,
+      user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+      device_name TEXT NOT NULL,
+      device_type TEXT DEFAULT 'mobile',
+      push_token TEXT,
+      last_active TIMESTAMPTZ DEFAULT NOW(),
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    -- ==================================================================================
+    -- PHẦN 2: THIẾT LẬP ROW LEVEL SECURITY (RLS) ĐẢM BẢO BẢO MẬT & APP KẾT NỐI TỰ DO
+    -- ==================================================================================
+    ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+    ALTER TABLE public.foods ENABLE ROW LEVEL SECURITY;
+    ALTER TABLE public.daily_meals ENABLE ROW LEVEL SECURITY;
+    ALTER TABLE public.weight_history ENABLE ROW LEVEL SECURITY;
+    ALTER TABLE public.user_recipes ENABLE ROW LEVEL SECURITY;
+    ALTER TABLE public.water_logs ENABLE ROW LEVEL SECURITY;
+    ALTER TABLE public.user_reminders ENABLE ROW LEVEL SECURITY;
+    ALTER TABLE public.user_favorite_foods ENABLE ROW LEVEL SECURITY;
+    ALTER TABLE public.ai_nutrition_logs ENABLE ROW LEVEL SECURITY;
+    ALTER TABLE public.user_devices ENABLE ROW LEVEL SECURITY;
+
+    CREATE POLICY "Cho phép đọc dữ liệu foods" ON public.foods FOR SELECT USING (true);
+    CREATE POLICY "Cho phép tạo món mới trong foods" ON public.foods FOR INSERT WITH CHECK (true);
+    CREATE POLICY "Cho phép cập nhật foods" ON public.foods FOR UPDATE USING (true);
+    CREATE POLICY "Cho phép xem profiles" ON public.profiles FOR SELECT USING (true);
+    CREATE POLICY "Cho phép sửa profile của mình" ON public.profiles FOR ALL USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
+    CREATE POLICY "Cho phép quản lý daily_meals" ON public.daily_meals FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+    CREATE POLICY "Cho phép quản lý weight_history" ON public.weight_history FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+    CREATE POLICY "Cho phép quản lý user_recipes" ON public.user_recipes FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+    CREATE POLICY "Cho phép quản lý water_logs" ON public.water_logs FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+    CREATE POLICY "Cho phép quản lý user_reminders" ON public.user_reminders FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+    CREATE POLICY "Cho phép quản lý user_favorite_foods" ON public.user_favorite_foods FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+    CREATE POLICY "Cho phép quản lý ai_nutrition_logs" ON public.ai_nutrition_logs FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+    CREATE POLICY "Cho phép quản lý user_devices" ON public.user_devices FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+
+    -- ==================================================================================
+    -- PHẦN 3: TỰ ĐỘNG TẠO PROFILE CHO USER MỚI (TRIGGER) & SYNC USER CŨ
+    -- ==================================================================================
+    CREATE OR REPLACE FUNCTION public.handle_new_user()
+    RETURNS trigger AS $$
+    BEGIN
+      INSERT INTO public.profiles (id, full_name, avatar_url)
+      VALUES (
+        new.id,
+        COALESCE(new.raw_user_meta_data->>'full_name', split_part(new.email, '@', 1)),
+        new.raw_user_meta_data->>'avatar_url'
+      )
+      ON CONFLICT (id) DO NOTHING;
+
+      INSERT INTO public.user_reminders (user_id)
+      VALUES (new.id)
+      ON CONFLICT (user_id) DO NOTHING;
+
+      RETURN new;
+    END;
+    $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+    DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+    CREATE TRIGGER on_auth_user_created
+      AFTER INSERT ON auth.users
+      FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+    -- Tự động sync tài khoản bạn đang đăng nhập trước đó
+    INSERT INTO public.profiles (id, full_name, avatar_url)
+    SELECT id, COALESCE(raw_user_meta_data->>'full_name', split_part(email, '@', 1)), raw_user_meta_data->>'avatar_url'
+    FROM auth.users
+    ON CONFLICT (id) DO NOTHING;
+
+    INSERT INTO public.user_reminders (user_id)
+    SELECT id FROM auth.users
+    ON CONFLICT (user_id) DO NOTHING;
+
+    -- ==================================================================================
+    -- PHẦN 4: SEED KHO MÓN ĂN QUÁN VIỆT & NGUYÊN LIỆU THÔ CÂN GRAM
+    -- ==================================================================================
+    INSERT INTO public.foods (name, serving_size, calories, protein, carbs, fat, food_type, category, region, icon)
+    VALUES
+      -- Phở
+      ('Phở Bò Tái Nạm', '1 Tô tiêu chuẩn (Hà Nội)', 520, 32.0, 58.0, 16.0, 'restaurant_dish', 'pho', 'Miền Bắc', '🍜'),
+      ('Phở Bò Tái Nạm (Đặc biệt)', '1 Tô lớn nhiều thịt', 730, 44.0, 80.0, 22.0, 'restaurant_dish', 'pho', 'Miền Bắc', '🍜'),
+      ('Phở Bò Tái Lăn', '1 Tô chuẩn thơm tỏi', 620, 34.0, 60.0, 26.0, 'restaurant_dish', 'pho', 'Miền Bắc', '🍜'),
+      ('Phở Gà Ta Lá Chanh', '1 Tô chuẩn thanh', 460, 30.0, 56.0, 12.0, 'restaurant_dish', 'pho', 'Miền Bắc', '🍜'),
+      ('Phở Bò Sốt Vang', '1 Tô chuẩn', 610, 34.0, 62.0, 24.0, 'restaurant_dish', 'pho', 'Miền Bắc', '🍜'),
+      ('Phở Cuốn Bò Hà Nội', '1 Đĩa (8 cuốn)', 510, 26.0, 60.0, 17.0, 'restaurant_dish', 'pho', 'Miền Bắc', '🥟'),
+
+      -- Cơm
+      ('Cơm Tấm Sườn Bì Chả', '1 Dĩa chuẩn (Sài Gòn)', 650, 34.0, 75.0, 22.0, 'restaurant_dish', 'com', 'Miền Nam', '🍱'),
+      ('Cơm Tấm Sườn Cây Đặc Biệt', '1 Dĩa lớn + ốp la', 880, 48.0, 95.0, 32.0, 'restaurant_dish', 'com', 'Miền Nam', '🍱'),
+      ('Cơm Gà Xối Mỡ Da Giòn', '1 Dĩa góc tư đùi', 740, 38.0, 82.0, 28.0, 'restaurant_dish', 'com', 'Miền Nam', '🍗'),
+      ('Cơm Rang Dưa Bò', '1 Dĩa chuẩn', 680, 28.0, 85.0, 24.0, 'restaurant_dish', 'com', 'Miền Bắc', '🍚'),
+      ('Cơm Sườn Nướng Mật Ong', '1 Dĩa chuẩn', 620, 32.0, 74.0, 20.0, 'restaurant_dish', 'com', 'Toàn quốc', '🍱'),
+
+      -- Bún
+      ('Bún Chả Hà Nội', '1 Suất tiêu chuẩn', 580, 28.0, 70.0, 20.0, 'restaurant_dish', 'bun', 'Miền Bắc', '🍲'),
+      ('Bún Bò Huế Chuẩn Vị', '1 Tô nạm chả cua', 560, 32.0, 64.0, 18.0, 'restaurant_dish', 'bun', 'Miền Trung', '🍲'),
+      ('Bún Đậu Mắm Tôm', '1 Mẹt tiêu chuẩn', 650, 32.0, 68.0, 26.0, 'restaurant_dish', 'bun', 'Miền Bắc', '🥢'),
+      ('Bún Đậu Thập Cẩm Đầy Đủ', '1 Mẹt đặc biệt (+Dồi, Nem)', 890, 44.0, 80.0, 42.0, 'restaurant_dish', 'bun', 'Miền Bắc', '🥢'),
+      ('Bún Riêu Cua Bắp Bò', '1 Tô chuẩn', 480, 26.0, 62.0, 14.0, 'restaurant_dish', 'bun', 'Miền Bắc', '🍲'),
+      ('Bún Thịt Nướng Chả Giò', '1 Tô chuẩn', 570, 28.0, 72.0, 18.0, 'restaurant_dish', 'bun', 'Miền Nam', '🥗'),
+
+      -- Bánh mì & Hủ tiếu
+      ('Bánh Mì Thịt Nguội Pate', '1 Ổ chuẩn truyền thống', 430, 18.0, 48.0, 19.0, 'restaurant_dish', 'banh_mi', 'Toàn quốc', '🥖'),
+      ('Bánh Mì Chảo Đầy Đủ (Pate, Bò, Trứng)', '1 Chảo nóng + 1 bánh', 670, 34.0, 56.0, 34.0, 'restaurant_dish', 'banh_mi', 'Toàn quốc', '🍳'),
+      ('Hủ Tiếu Nam Vang', '1 Tô chuẩn', 490, 26.0, 65.0, 14.0, 'restaurant_dish', 'mi_hu_tieu', 'Miền Nam', '🥣'),
+      ('Bánh Canh Cua Giò Heo', '1 Tô đầy đủ', 580, 35.0, 62.0, 21.0, 'restaurant_dish', 'mi_hu_tieu', 'Miền Nam', '🦀'),
+
+      -- Nguyên liệu thô cân tiểu ly (100g)
+      ('Ức gà phi lê (sống)', '100g', 120, 23.0, 0.0, 2.6, 'raw_ingredient', 'meat', 'Toàn quốc', '🍗'),
+      ('Thịt thăn bò tươi (sống)', '100g', 142, 22.5, 0.0, 5.5, 'raw_ingredient', 'meat', 'Toàn quốc', '🥩'),
+      ('Thịt nạc dăm heo tươi', '100g', 165, 19.0, 0.0, 9.8, 'raw_ingredient', 'meat', 'Toàn quốc', '🥩'),
+      ('Cá hồi phi lê tươi', '100g', 208, 20.4, 0.0, 13.4, 'raw_ingredient', 'seafood', 'Toàn quốc', '🐟'),
+      ('Tôm sú tươi lột vỏ', '100g', 85, 18.2, 0.9, 0.9, 'raw_ingredient', 'seafood', 'Toàn quốc', '🦐'),
+      ('Trứng gà nguyên quả', '100g (~2 quả)', 143, 12.6, 0.7, 9.5, 'raw_ingredient', 'egg_dairy', 'Toàn quốc', '🥚'),
+      ('Sữa chua Hy Lạp không đường', '100g', 65, 10.0, 4.0, 0.5, 'raw_ingredient', 'egg_dairy', 'Toàn quốc', '🥛'),
+      ('Cơm trắng nấu chín', '100g', 130, 2.7, 28.0, 0.3, 'raw_ingredient', 'carb', 'Toàn quốc', '🍚'),
+      ('Cơm gạo lứt huyết rồng', '100g', 110, 2.6, 23.0, 0.8, 'raw_ingredient', 'carb', 'Toàn quốc', '🍚'),
+      ('Khoai lang luộc / hấp', '100g', 86, 1.6, 20.1, 0.1, 'raw_ingredient', 'carb', 'Toàn quốc', '🍠'),
+      ('Bông cải xanh (luộc)', '100g', 34, 2.8, 6.7, 0.4, 'raw_ingredient', 'veggie', 'Toàn quốc', '🥦'),
+      ('Rau muống luộc', '100g', 20, 2.6, 3.1, 0.2, 'raw_ingredient', 'veggie', 'Toàn quốc', '🥗'),
+      ('Đậu phụ trắng truyền thống', '100g', 76, 8.0, 1.9, 4.8, 'raw_ingredient', 'tofu_bean', 'Toàn quốc', '🧈'),
+      ('Dầu ô liu Extra Virgin', '100g', 884, 0.0, 0.0, 100.0, 'raw_ingredient', 'fat_seasoning', 'Toàn quốc', '🫒')
+    ON CONFLICT DO NOTHING;
+
+    -- ==================================================================================
+    -- PHẦN 5: CẬP NHẬT MÓN GỌI THÊM (TOPPINGS) ĐẶC THÙ THEO TỪNG MÓN
+    -- ==================================================================================
+    UPDATE public.foods
+    SET toppings = '[
+      {"id": "trung_tran", "name": "Trứng trần (1 quả)", "calories": 75, "protein": 6, "carbs": 0.5, "fat": 5, "icon": "💧", "subtitle": "+6g protein lòng đào", "colorType": "peach"},
+      {"id": "quay_gion", "name": "Quẩy giòn (2 chiếc)", "calories": 120, "protein": 2.5, "carbs": 16, "fat": 5.5, "icon": "🥐", "subtitle": "+16g carb giòn tan", "colorType": "purple"},
+      {"id": "nuoc_beo", "name": "Nước béo / Chén tiết", "calories": 110, "protein": 2, "carbs": 0, "fat": 11, "icon": "🥣", "subtitle": "+11g chất béo tự nhiên", "colorType": "pink"},
+      {"id": "thit_them", "name": "Thịt bò tái / nạm thêm (50g)", "calories": 105, "protein": 16, "carbs": 0, "fat": 4.5, "icon": "🥩", "subtitle": "+16g protein nạc", "colorType": "mint"},
+      {"id": "banh_them", "name": "Bánh phở thêm (100g)", "calories": 140, "protein": 2.5, "carbs": 31, "fat": 0.3, "icon": "🍜", "subtitle": "+31g carb", "colorType": "blue"}
+    ]'::jsonb
+    WHERE name ILIKE '%phở%';
+
+    UPDATE public.foods
+    SET toppings = '[
+      {"id": "op_la", "name": "Trứng ốp la (1 quả)", "calories": 90, "protein": 6.5, "carbs": 0.5, "fat": 7, "icon": "🍳", "subtitle": "+6.5g protein lòng đào", "colorType": "peach"},
+      {"id": "cha_trung", "name": "Chả trứng hấp (1 miếng)", "calories": 130, "protein": 8, "carbs": 4, "fat": 9, "icon": "🥮", "subtitle": "+8g protein", "colorType": "purple"},
+      {"id": "suon_them", "name": "Sườn nướng thêm (1 miếng)", "calories": 240, "protein": 22, "carbs": 5, "fat": 15, "icon": "🥩", "subtitle": "+22g protein nạc", "colorType": "mint"},
+      {"id": "bi_them", "name": "Bì heo trộn thính (30g)", "calories": 85, "protein": 10, "carbs": 1, "fat": 4.5, "icon": "🥓", "subtitle": "+10g protein giòn", "colorType": "pink"},
+      {"id": "com_them", "name": "Cơm thêm (1 chén)", "calories": 130, "protein": 2.7, "carbs": 28, "fat": 0.3, "icon": "🍚", "subtitle": "+28g carb", "colorType": "blue"},
+      {"id": "canh_them", "name": "Canh súp / Canh khổ qua", "calories": 45, "protein": 2, "carbs": 4, "fat": 2, "icon": "🥣", "subtitle": "Thanh nhiệt", "colorType": "mint"}
+    ]'::jsonb
+    WHERE name ILIKE '%cơm%';
+
+    UPDATE public.foods
+    SET toppings = '[
+      {"id": "doi_sun", "name": "Dồi sụn rán (4 miếng)", "calories": 165, "protein": 9, "carbs": 6, "fat": 11, "icon": "🌭", "subtitle": "+9g protein", "colorType": "purple"},
+      {"id": "nem_ran", "name": "Nem rán giòn (2 chiếc)", "calories": 180, "protein": 7, "carbs": 12, "fat": 11, "icon": "🥟", "subtitle": "+12g carb giòn rụm", "colorType": "peach"},
+      {"id": "cha_com", "name": "Chả cốm chiên (2 miếng)", "calories": 145, "protein": 8, "carbs": 10, "fat": 7.5, "icon": "🍘", "subtitle": "+8g protein dẻo thơm", "colorType": "mint"},
+      {"id": "thit_luoc", "name": "Thịt chân giò luộc (50g)", "calories": 125, "protein": 11, "carbs": 0, "fat": 9, "icon": "🥩", "subtitle": "+11g protein nạc", "colorType": "pink"},
+      {"id": "dau_ran", "name": "Đậu phụ rán giòn (4 miếng)", "calories": 110, "protein": 8, "carbs": 2, "fat": 7.5, "icon": "🧈", "subtitle": "+8g đạm thực vật", "colorType": "blue"}
+    ]'::jsonb
+    WHERE name ILIKE '%bún đậu%';
+
+    UPDATE public.foods
+    SET toppings = '[
+      {"id": "pate_them", "name": "Pate gan thêm (30g)", "calories": 115, "protein": 4.5, "carbs": 2, "fat": 10, "icon": "🥫", "subtitle": "+10g béo thơm", "colorType": "pink"},
+      {"id": "op_la", "name": "Trứng ốp la (1 quả)", "calories": 90, "protein": 6.5, "carbs": 0.5, "fat": 7, "icon": "🍳", "subtitle": "+6.5g protein", "colorType": "peach"},
+      {"id": "cha_lua", "name": "Chả lụa / Xúc xích (40g)", "calories": 95, "protein": 7.5, "carbs": 1.5, "fat": 6.5, "icon": "🥓", "subtitle": "+7.5g protein nạc", "colorType": "mint"},
+      {"id": "bo_thom", "name": "Bơ thơm / Sốt bơ trứng (15g)", "calories": 90, "protein": 0.3, "carbs": 0.5, "fat": 10, "icon": "🧈", "subtitle": "Tăng vị béo ngậy", "colorType": "purple"}
+    ]'::jsonb
+    WHERE name ILIKE '%bánh mì%';

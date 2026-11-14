@@ -66,12 +66,18 @@ export const calculateMealsTotal = (
   let fat = 0;
 
   meals.forEach((meal) => {
-    if (meal.foods) {
-      const qty = Number(meal.quantity) || 1;
-      calories += Number(meal.foods.calories || 0) * qty;
-      protein += Number(meal.foods.protein || 0) * qty;
-      carbs += Number(meal.foods.carbs || 0) * qty;
-      fat += Number(meal.foods.fat || 0) * qty;
+    const qty = Number(meal.quantity) || 1;
+    const food = meal.foods;
+    if (food) {
+      calories += Number(food.calories || 0) * qty;
+      protein += Number(food.protein || 0) * qty;
+      carbs += Number(food.carbs || 0) * qty;
+      fat += Number(food.fat || 0) * qty;
+    } else if (meal.calories != null) {
+      calories += Number(meal.calories || 0) * qty;
+      protein += Number(meal.protein || 0) * qty;
+      carbs += Number(meal.carbs || 0) * qty;
+      fat += Number(meal.fat || 0) * qty;
     }
   });
 

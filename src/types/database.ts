@@ -24,6 +24,16 @@ export interface Food {
   carbs: number;
   fat: number;
   image_url: string | null;
+  region?: string | null;
+  food_type?: 'restaurant_dish' | 'raw_ingredient' | string | null;
+  category?: string | null;
+  special_label?: string | null;
+  special_calories?: number | null;
+  special_protein?: number | null;
+  special_carbs?: number | null;
+  special_fat?: number | null;
+  toppings?: any | null;
+  icon?: string | null;
 }
 
 export type MealTimeType = 'Sáng' | 'Trưa' | 'Tối' | 'Ăn vặt';
@@ -32,10 +42,22 @@ export interface DailyMeal {
   id: number; // Serial, Primary Key
   user_id: string; // UUID, reference profiles.id
   food_id: number; // Integer, reference foods.id
+  dish_name?: string | null;
+  serving_size?: string | null;
+  calories?: number | null;
+  protein?: number | null;
+  carbs?: number | null;
+  fat?: number | null;
+  fiber?: number | null;
+  sodium?: number | null;
+  meal_source?: string | null;
+  items_detail?: any | null;
+  image_url?: string | null;
   quantity: number; // Hệ số phần ăn (vd: 1, 1.5, 2)
   meal_time: MealTimeType | string;
   consumed_date: string; // YYYY-MM-DD
-  foods?: Food; // Join quan hệ từ bảng foods
+  consumed_time?: string | null;
+  foods?: Food | null; // Join quan hệ từ bảng foods
 }
 
 export interface WeightHistory {

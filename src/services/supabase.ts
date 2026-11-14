@@ -346,6 +346,108 @@ export const addMeal = async (
 };
 
 /**
+ * Lưu một bữa ăn đã qua tính toán AI (Ăn ngoài hoặc Tự nấu)
+ */
+export const logCalculatedMeal = async (
+  userId: string,
+  mealData: {
+    dishName: string;
+    totalCalories: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+    servingSize: string;
+    mealTime: MealTimeType | string;
+    consumedDate?: string;
+  }
+): Promise<{ data: DailyMeal | null; error: any }> => {
+  try {
+    const targetDate = mealData.consumedDate || getTodayDateString();
+
+    // 1. Tạo một bản ghi thực phẩm trong bảng foods
+    let createdFoodId: number | null = null;
+    let createdFood: Food | null = null;
+
+    const { data: foodData, error: foodError } = await supabase
+      .from('foods')
+      .insert({
+        name: mealData.dishName,
+        serving_size: mealData.servingSize,
+        calories: mealData.totalCalories,
+        protein: mealData.protein,
+        carbs: mealData.carbs,
+        fat: mealData.fat,
+      })
+      .select()
+      .single();
+
+    if (!foodError && foodData) {
+      createdFoodId = foodData.id;
+      createdFood = foodData as Food;
+    } else {
+      console.warn('Lưu food phụ vào foods thất bại hoặc bảng foods chưa hỗ trợ:', foodError);
+    }
+
+    // 2. Thêm vào bảng daily_meals
+    // Thử chèn đầy đủ cột mới theo schema toàn diện, nếu DB cũ chưa có cột mới thì tự động fallback
+    const basicPayload = {
+      user_id: userId,
+      food_id: createdFoodId,
+      quantity: 1,
+      meal_time: mealData.mealTime,
+      consumed_date: targetDate,
+    };
+
+    const fullPayload = {
+      ...basicPayload,
+      dish_name: mealData.dishName,
+      serving_size: mealData.servingSize,
+      calories: mealData.totalCalories,
+      protein: mealData.protein,
+      carbs: mealData.carbs,
+      fat: mealData.fat,
+    };
+
+    let mealRecord: any = null;
+    let mealError: any = null;
+
+    const fullRes = await supabase
+      .from('daily_meals')
+      .insert(fullPayload)
+      .select('*, foods:food_id(*)')
+      .single();
+
+    if (fullRes.error && fullRes.error.message?.includes('column')) {
+      const basicRes = await supabase
+        .from('daily_meals')
+        .insert(basicPayload)
+        .select('*, foods:food_id(*)')
+        .single();
+      mealRecord = basicRes.data;
+      mealError = basicRes.error;
+    } else {
+      mealRecord = fullRes.data;
+      mealError = fullRes.error;
+    }
+
+    if (mealError) {
+      logSupabaseError('daily_meals.insert_calculated', mealError);
+      return { data: null, error: mealError };
+    }
+
+    // Đảm bảo đối tượng trả về có thông tin foods
+    if (mealRecord && !mealRecord.foods && createdFood) {
+      mealRecord.foods = createdFood;
+    }
+
+    return { data: mealRecord as DailyMeal, error: null };
+  } catch (err) {
+    logUnexpectedError('meals.logCalculatedMeal', err);
+    return { data: null, error: err };
+  }
+};
+
+/**
  * Xóa một bản ghi bữa ăn
  */
 export const deleteMeal = async (mealId: number): Promise<{ success: boolean; error: any }> => {
@@ -423,5 +525,73 @@ export const addWeightRecord = async (
   } catch (err) {
     console.error('Lỗi ngoại lệ khi thêm cân nặng:', err);
     return { data: null, error: err };
+  }
+};
+
+// ==========================================
+// 5. HELPER API CHO BẢNG USER_RECIPES (CÔNG THỨC TỰ NẤU)
+// ==========================================
+
+export interface UserRecipeData {
+  recipe_name: string;
+  cooking_method?: string;
+  total_weight?: number;
+  total_calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  ingredients_json?: any;
+}
+
+export const saveUserRecipe = async (
+  userId: string,
+  recipe: UserRecipeData
+): Promise<{ data: any | null; error: any }> => {
+  try {
+    const { data, error } = await supabase
+      .from('user_recipes')
+      .insert({
+        user_id: userId,
+        recipe_name: recipe.recipe_name,
+        cooking_method: recipe.cooking_method,
+        total_weight: recipe.total_weight,
+        total_calories: recipe.total_calories,
+        protein: recipe.protein,
+        carbs: recipe.carbs,
+        fat: recipe.fat,
+        ingredients_json: recipe.ingredients_json,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.warn('Lỗi khi lưu user_recipe:', error.message);
+      return { data: null, error };
+    }
+    return { data, error: null };
+  } catch (err) {
+    console.warn('Lỗi ngoại lệ khi lưu user_recipe:', err);
+    return { data: null, error: err };
+  }
+};
+
+export const getUserRecipes = async (
+  userId: string
+): Promise<{ data: any[]; error: any }> => {
+  try {
+    const { data, error } = await supabase
+      .from('user_recipes')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.warn('Lỗi khi lấy user_recipes:', error.message);
+      return { data: [], error };
+    }
+    return { data: data || [], error: null };
+  } catch (err) {
+    console.warn('Lỗi ngoại lệ khi lấy user_recipes:', err);
+    return { data: [], error: err };
   }
 };
