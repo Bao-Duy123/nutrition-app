@@ -1,113 +1,110 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { RefreshControl } from 'react-native';
 import { useRouter } from 'expo-router';
-import { YStack, XStack, Text, Button, Input, ScrollView, Spinner, View } from 'tamagui';
+import { YStack, XStack, Text, Button, ScrollView, Spinner, View } from 'tamagui';
 import { useAppDispatch, useAppSelector } from '../../src/store';
-import { setProfile, clearAuth } from '../../src/store/slices/authSlice';
+import { setProfile as setAuthProfile, clearAuth } from '../../src/store/slices/authSlice';
+import { setProfile as setStoreProfile, setProfileLoading, setProfileError, clearProfile } from '../../src/store/slices/profileSlice';
 import { setDailyCalorieGoal, setTodayMeals } from '../../src/store/slices/dietSlice';
 import { CONFIG } from '../../src/constants/config';
-import {
-  getUserProfile,
-  logSupabaseError,
-  logUnexpectedError,
-  supabase,
-  updateUserProfile,
-} from '../../src/services/supabase';
-import { calculateBMR, calculateTDEE, calculateSuggestedCalorie } from '../../src/utils/calculateMacro';
 import { THEME } from '../../src/constants/theme';
+import { Profile } from '../../src/types/database';
+import { getProfile } from '../../src/services/profileService';
+import { supabase, logSupabaseError, logUnexpectedError } from '../../src/services/supabase';
 import { showAlert } from '../../src/utils/showAlert';
+import { ProfileHeader } from '../../src/components/profile/ProfileHeader';
+import { ProfileMenuList } from '../../src/components/profile/ProfileMenuList';
+import { EditProfileModal } from '../../src/components/profile/EditProfileModal';
 
 export default function ProfileScreen() {
   const router = useRouter();
   const dispatch = useAppDispatch();
-  const { userId, profile } = useAppSelector((state) => state.auth);
 
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
+  // Lấy session & user từ Redux store (hoặc fallback auth)
+  const { session, userId: authUserId } = useAppSelector((state) => state.auth);
+  const { profile, isLoading, error: profileError } = useAppSelector((state) => state.profile);
 
-  // Form state
-  const [fullName, setFullName] = useState('');
-  const [gender, setGender] = useState('Nam');
-  const [age, setAge] = useState('');
-  const [height, setHeight] = useState('');
-  const [currentWeight, setCurrentWeight] = useState('');
-  const [targetWeight, setTargetWeight] = useState('');
-  const [goalType, setGoalType] = useState('Giữ cân');
+  // Email lấy từ auth session (không lấy từ bảng profiles)
+  const userEmail = session?.user?.email || null;
 
-  // Load profile từ Supabase
-  useEffect(() => {
-    const fetchProfile = async () => {
-      if (!userId) return;
+  const [refreshing, setRefreshing] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+
+  // Hàm tải dữ liệu hồ sơ từ Supabase
+  const loadProfile = useCallback(
+    async (isManualRefresh = false) => {
+      // Xác định userId hiện tại từ auth session
+      let currentUserId = authUserId;
+      if (!currentUserId) {
+        const { data: sessionData } = await supabase.auth.getSession();
+        currentUserId = sessionData.session?.user?.id || null;
+      }
+
+      if (!currentUserId) {
+        dispatch(setProfileLoading(false));
+        return;
+      }
+
+      if (isManualRefresh) {
+        setRefreshing(true);
+      } else {
+        dispatch(setProfileLoading(true));
+      }
 
       try {
-        setLoading(true);
-        const { data, error } = await getUserProfile(userId);
-        if (data) {
-          dispatch(setProfile(data));
-          setFullName(data.full_name || '');
-          setGender(data.gender || 'Nam');
-          setAge(data.age ? String(data.age) : '25');
-          setHeight(data.height ? String(data.height) : '170');
-          setCurrentWeight(data.current_weight ? String(data.current_weight) : '65');
-          setTargetWeight(data.target_weight ? String(data.target_weight) : '60');
-          setGoalType(data.goal_type || 'Giữ cân');
+        const { data, error } = await getProfile(currentUserId);
+
+        if (error) {
+          const formattedMsg =
+            typeof error === 'object' && error?.message
+              ? error.message
+              : 'Không thể tải thông tin hồ sơ.';
+          dispatch(setProfileError(formattedMsg));
+        } else {
+          dispatch(setStoreProfile(data));
+          if (data) {
+            dispatch(setAuthProfile(data));
+            if (data.daily_calorie_goal) {
+              dispatch(setDailyCalorieGoal(data.daily_calorie_goal));
+            }
+          }
         }
       } catch (err: any) {
-        console.error('Lỗi tải profile:', err);
+        const msg = err.message || 'Lỗi kết nối khi tải hồ sơ.';
+        dispatch(setProfileError(msg));
       } finally {
-        setLoading(false);
+        if (isManualRefresh) {
+          setRefreshing(false);
+        } else {
+          dispatch(setProfileLoading(false));
+        }
       }
-    };
+    },
+    [authUserId, dispatch]
+  );
 
-    fetchProfile();
-  }, [userId, dispatch]);
+  // Tự động load dữ liệu khi component mount
+  useEffect(() => {
+    loadProfile();
+  }, [loadProfile]);
 
-  // Cập nhật thông tin profile
-  const handleSaveProfile = async () => {
-    if (!userId) return;
+  // Pull-to-refresh
+  const onRefresh = useCallback(() => {
+    loadProfile(true);
+  }, [loadProfile]);
 
-    try {
-      setSaving(true);
-      const numWeight = parseFloat(currentWeight) || 60;
-      const numHeight = parseFloat(height) || 165;
-      const numAge = parseInt(age, 10) || 25;
-
-      // Tính lại mục tiêu calo
-      const bmr = calculateBMR(numWeight, numHeight, numAge, gender);
-      const tdee = calculateTDEE(bmr);
-      const newCalorieGoal = calculateSuggestedCalorie(tdee, goalType);
-
-      const updates = {
-        full_name: fullName.trim(),
-        gender,
-        age: numAge,
-        height: numHeight,
-        current_weight: numWeight,
-        target_weight: parseFloat(targetWeight) || numWeight,
-        goal_type: goalType,
-        daily_calorie_goal: newCalorieGoal,
-      };
-
-      const { data, error } = await updateUserProfile(userId, updates);
-
-      if (error) {
-        showAlert('Lỗi cập nhật', error.message);
-      } else if (data) {
-        dispatch(setProfile(data));
-        dispatch(setDailyCalorieGoal(newCalorieGoal));
-        setIsEditing(false);
-        showAlert('Thành công', 'Thông tin cá nhân đã được lưu cập nhật!');
-      }
-    } catch (err: any) {
-      showAlert('Lỗi', err.message || 'Không thể lưu thay đổi');
-    } finally {
-      setSaving(false);
+  // Cập nhật khi sửa thành công trong modal
+  const handleUpdateSuccess = (updatedProfile: Profile) => {
+    dispatch(setStoreProfile(updatedProfile));
+    dispatch(setAuthProfile(updatedProfile));
+    if (updatedProfile.daily_calorie_goal) {
+      dispatch(setDailyCalorieGoal(updatedProfile.daily_calorie_goal));
     }
   };
 
-  // Đăng xuất
+  // Đăng xuất khỏi Supabase Auth và xóa toàn bộ state
   const handleSignOut = async () => {
-    showAlert('Xác nhận đăng xuất', 'Bạn có chắc chắn muốn đăng xuất khỏi ứng dụng?', [
+    showAlert('Xác nhận đăng xuất', 'Bạn có chắc chắn muốn đăng xuất khỏi tài khoản?', [
       { text: 'Hủy', style: 'cancel' },
       {
         text: 'Đăng xuất',
@@ -119,9 +116,14 @@ export default function ProfileScreen() {
               showAlert('Không thể đăng xuất', logSupabaseError('auth.signOut', error));
               return;
             }
+
+            // Xóa state trong toàn bộ store
             dispatch(clearAuth());
+            dispatch(clearProfile());
             dispatch(setTodayMeals([]));
             dispatch(setDailyCalorieGoal(CONFIG.DEFAULT_DAILY_CALORIE_GOAL));
+
+            // Chuyển hướng về trang đăng nhập
             router.replace('/login');
           } catch (error) {
             showAlert('Lỗi', logUnexpectedError('auth.signOut', error));
@@ -131,179 +133,201 @@ export default function ProfileScreen() {
     ]);
   };
 
-  if (loading) {
+  // 1. TRẠNG THÁI ĐANG TẢI (LOADING STATE)
+  if (isLoading && !profile && !refreshing) {
     return (
-      <YStack flex={1} alignItems="center" justifyContent="center" backgroundColor={THEME.colors.background}>
+      <YStack flex={1} alignItems="center" justifyContent="center" backgroundColor={THEME.colors.background} gap="$3">
         <Spinner size="large" color={THEME.colors.primary} />
-        <Text marginTop="$2" color={THEME.colors.textMuted}>
+        <Text fontSize={14} color={THEME.colors.textMuted} fontWeight="500">
           Đang tải thông tin cá nhân...
         </Text>
       </YStack>
     );
   }
 
-  return (
-    <ScrollView
-      backgroundColor={THEME.colors.background}
-      contentContainerStyle={{ paddingBottom: 50 }}
-      showsVerticalScrollIndicator={false}
-    >
-      <YStack padding="$4" gap="$4">
-        {/* HEADER PROFILE */}
-        <YStack
-          backgroundColor={THEME.colors.card}
-          borderRadius={THEME.radius.lg}
-          padding="$5"
-          alignItems="center"
-          borderWidth={1}
-          borderColor={THEME.colors.border}
-          gap="$2"
+  // 2. TRẠNG THÁI LỖI (ERROR STATE)
+  if (profileError && !profile && !refreshing) {
+    return (
+      <YStack flex={1} alignItems="center" justifyContent="center" padding="$6" backgroundColor={THEME.colors.background} gap="$4">
+        <Text fontSize={48}>⚠️</Text>
+        <Text fontSize={18} fontWeight="800" color={THEME.colors.textMain} textAlign="center">
+          Không thể tải dữ liệu hồ sơ
+        </Text>
+        <Text fontSize={13} color={THEME.colors.textMuted} textAlign="center">
+          {profileError}
+        </Text>
+        <Button
+          backgroundColor={THEME.colors.primary}
+          borderRadius={THEME.radius.md}
+          paddingHorizontal="$5"
+          height={44}
+          onPress={() => loadProfile()}
         >
+          <Text fontSize={14} fontWeight="700" color="#FFFFFF">
+            Thử lại
+          </Text>
+        </Button>
+      </YStack>
+    );
+  }
+
+  return (
+    <YStack flex={1} backgroundColor={THEME.colors.background}>
+      {/* TOP HEADER BAR (Khớp với hình mẫu docs/ui/06-profile/profile.png) */}
+      <XStack
+        paddingHorizontal="$4"
+        paddingTop={16}
+        paddingBottom="$3"
+        backgroundColor={THEME.colors.background}
+        alignItems="center"
+        justifyContent="space-between"
+      >
+        <XStack alignItems="center" gap="$2.5">
           <View
-            width={80}
-            height={80}
-            borderRadius={40}
-            backgroundColor={THEME.colors.primaryLight}
+            width={38}
+            height={38}
+            borderRadius={19}
+            backgroundColor="#E8EEFF"
             alignItems="center"
             justifyContent="center"
-            marginBottom="$2"
           >
-            <Text fontSize={36}>👤</Text>
+            <Text fontSize={18}>🔥</Text>
           </View>
-
           <Text fontSize={20} fontWeight="800" color={THEME.colors.textMain}>
-            {profile?.full_name || 'Người dùng'}
+            Cá Nhân
           </Text>
+        </XStack>
 
-          <Text fontSize={13} color={THEME.colors.textMuted}>
-            Mục tiêu: <Text fontWeight="700" color={THEME.colors.primary}>{profile?.goal_type || 'Theo dõi'}</Text>
-          </Text>
-
+        <XStack alignItems="center" gap="$2.5">
+          {/* Nút thông báo */}
           <View
-            backgroundColor={THEME.colors.background}
-            paddingHorizontal="$3"
-            paddingVertical="$2"
-            borderRadius={THEME.radius.md}
-            marginTop="$2"
+            width={38}
+            height={38}
+            borderRadius={19}
+            backgroundColor={THEME.colors.card}
+            borderWidth={1}
+            borderColor={THEME.colors.borderLight}
+            alignItems="center"
+            justifyContent="center"
+            onPress={() => showAlert('Thông báo', 'Bạn không có thông báo mới.')}
+            cursor="pointer"
           >
-            <Text fontSize={13} fontWeight="600" color={THEME.colors.textMain}>
-              Mức Calo chuẩn: <Text color={THEME.colors.calories} fontWeight="800">{profile?.daily_calorie_goal || 2000}</Text> kcal/ngày
+            <Text fontSize={17}>🔔</Text>
+          </View>
+
+          {/* Nút profile user */}
+          <View
+            width={38}
+            height={38}
+            borderRadius={19}
+            backgroundColor={THEME.colors.primary}
+            alignItems="center"
+            justifyContent="center"
+            onPress={() => setIsEditModalOpen(true)}
+            cursor="pointer"
+          >
+            <Text fontSize={16} color="#FFFFFF">
+              👤
             </Text>
           </View>
-        </YStack>
+        </XStack>
+      </XStack>
 
-        {/* THÔNG TIN CHI TIẾT */}
-        <YStack
-          backgroundColor={THEME.colors.card}
-          borderRadius={THEME.radius.lg}
-          padding="$4"
-          borderWidth={1}
-          borderColor={THEME.colors.border}
-          gap="$3"
-        >
-          <XStack justifyContent="space-between" alignItems="center">
-            <Text fontSize={16} fontWeight="700" color={THEME.colors.textMain}>
-              Chỉ số thể chất
-            </Text>
-
-            <Button
-              height={32}
-              backgroundColor={isEditing ? THEME.colors.primaryLight : THEME.colors.background}
+      <ScrollView
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40, paddingTop: 4 }}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[THEME.colors.primary]}
+            tintColor={THEME.colors.primary}
+          />
+        }
+      >
+        <YStack gap="$5">
+          {/* 3. TRẠNG THÁI RỖNG (EMPTY STATE - nếu chưa có bản ghi profile) */}
+          {!profile ? (
+            <YStack
+              backgroundColor={THEME.colors.card}
+              padding="$6"
+              borderRadius={THEME.radius.lg}
               borderWidth={1}
-              borderColor={THEME.colors.border}
-              onPress={() => setIsEditing(!isEditing)}
+              borderColor={THEME.colors.borderLight}
+              alignItems="center"
+              gap="$3"
             >
-              <Text fontSize={12} fontWeight="700" color={isEditing ? THEME.colors.primaryDark : THEME.colors.textMain}>
-                {isEditing ? 'Hủy sửa' : '✏️ Chỉnh sửa'}
+              <Text fontSize={42}>📝</Text>
+              <Text fontSize={16} fontWeight="700" color={THEME.colors.textMain}>
+                Chưa có thông tin hồ sơ
               </Text>
-            </Button>
-          </XStack>
-
-          {isEditing ? (
-            <YStack gap="$3" paddingTop="$2">
-              <YStack gap="$1">
-                <Text fontSize={12} color={THEME.colors.textMuted}>Họ và tên</Text>
-                <Input value={fullName} onChangeText={setFullName} height={42} backgroundColor={THEME.colors.background} />
-              </YStack>
-
-              <XStack gap="$3">
-                <YStack flex={1} gap="$1">
-                  <Text fontSize={12} color={THEME.colors.textMuted}>Tuổi</Text>
-                  <Input value={age} onChangeText={setAge} keyboardType="numeric" height={42} backgroundColor={THEME.colors.background} />
-                </YStack>
-                <YStack flex={1} gap="$1">
-                  <Text fontSize={12} color={THEME.colors.textMuted}>Chiều cao (cm)</Text>
-                  <Input value={height} onChangeText={setHeight} keyboardType="numeric" height={42} backgroundColor={THEME.colors.background} />
-                </YStack>
-              </XStack>
-
-              <XStack gap="$3">
-                <YStack flex={1} gap="$1">
-                  <Text fontSize={12} color={THEME.colors.textMuted}>Cân nặng (kg)</Text>
-                  <Input value={currentWeight} onChangeText={setCurrentWeight} keyboardType="numeric" height={42} backgroundColor={THEME.colors.background} />
-                </YStack>
-                <YStack flex={1} gap="$1">
-                  <Text fontSize={12} color={THEME.colors.textMuted}>Mục tiêu (kg)</Text>
-                  <Input value={targetWeight} onChangeText={setTargetWeight} keyboardType="numeric" height={42} backgroundColor={THEME.colors.background} />
-                </YStack>
-              </XStack>
-
+              <Text fontSize={13} color={THEME.colors.textMuted} textAlign="center">
+                Hãy hoàn tất hồ sơ cá nhân để tính toán mục tiêu dinh dưỡng chính xác nhất.
+              </Text>
               <Button
                 backgroundColor={THEME.colors.primary}
                 borderRadius={THEME.radius.md}
-                marginTop="$2"
-                disabled={saving}
-                onPress={handleSaveProfile}
+                paddingHorizontal="$4"
+                height={42}
+                onPress={() => setIsEditModalOpen(true)}
               >
                 <Text fontSize={14} fontWeight="700" color="#FFFFFF">
-                  {saving ? 'Đang lưu...' : 'Lưu Thay Đổi'}
+                  + Thiết lập hồ sơ ngay
                 </Text>
               </Button>
             </YStack>
           ) : (
-            <YStack gap="$2" paddingTop="$2">
-              <XStack justifyContent="space-between" paddingVertical="$2" borderBottomWidth={1} borderBottomColor={THEME.colors.borderLight}>
-                <Text fontSize={14} color={THEME.colors.textMuted}>Giới tính</Text>
-                <Text fontSize={14} fontWeight="700" color={THEME.colors.textMain}>{profile?.gender || 'Chưa cập nhật'}</Text>
-              </XStack>
+            <>
+              {/* PROFILE HEADER (Avatar, Họ tên, ID, Email từ Auth, Badge, BMR, TDEE) */}
+              <ProfileHeader
+                profile={profile}
+                email={userEmail}
+                onEditAvatar={() => setIsEditModalOpen(true)}
+              />
 
-              <XStack justifyContent="space-between" paddingVertical="$2" borderBottomWidth={1} borderBottomColor={THEME.colors.borderLight}>
-                <Text fontSize={14} color={THEME.colors.textMuted}>Tuổi</Text>
-                <Text fontSize={14} fontWeight="700" color={THEME.colors.textMain}>{profile?.age || '--'} tuổi</Text>
-              </XStack>
-
-              <XStack justifyContent="space-between" paddingVertical="$2" borderBottomWidth={1} borderBottomColor={THEME.colors.borderLight}>
-                <Text fontSize={14} color={THEME.colors.textMuted}>Chiều cao</Text>
-                <Text fontSize={14} fontWeight="700" color={THEME.colors.textMain}>{profile?.height || '--'} cm</Text>
-              </XStack>
-
-              <XStack justifyContent="space-between" paddingVertical="$2" borderBottomWidth={1} borderBottomColor={THEME.colors.borderLight}>
-                <Text fontSize={14} color={THEME.colors.textMuted}>Cân nặng hiện tại</Text>
-                <Text fontSize={14} fontWeight="700" color={THEME.colors.primary}>{profile?.current_weight || '--'} kg</Text>
-              </XStack>
-
-              <XStack justifyContent="space-between" paddingVertical="$2">
-                <Text fontSize={14} color={THEME.colors.textMuted}>Cân nặng mục tiêu</Text>
-                <Text fontSize={14} fontWeight="700" color={THEME.colors.calories}>{profile?.target_weight || '--'} kg</Text>
-              </XStack>
-            </YStack>
+              {/* MENU ITEMS (Hồ sơ sức khỏe, Thông số cơ thể, Nhắc nhở, Đổi mật khẩu) */}
+              <ProfileMenuList
+                profile={profile}
+                onPressHealthProfile={() => setIsEditModalOpen(true)}
+                onPressBodyStats={() => setIsEditModalOpen(true)}
+                onPressReminders={() => showAlert('Nhắc nhở', 'Tính năng nhắc nhở bữa ăn đang được kích hoạt.')}
+                onPressChangePassword={() => router.push('/security')}
+              />
+            </>
           )}
-        </YStack>
 
-        {/* NÚT ĐĂNG XUẤT */}
-        <Button
-          backgroundColor="#FEE2E2"
-          borderRadius={THEME.radius.md}
-          borderWidth={1}
-          borderColor="#FCA5A5"
-          height={48}
-          onPress={handleSignOut}
-        >
-          <Text fontSize={14} fontWeight="700" color={THEME.colors.danger}>
-            🚪 Đăng Xuất
-          </Text>
-        </Button>
-      </YStack>
-    </ScrollView>
+          {/* NÚT ĐĂNG XUẤT (Nút màu đỏ dạng pill bo tròn theo thiết kế profile.png) */}
+          <Button
+            backgroundColor="#C5221F"
+            borderRadius={THEME.radius.full}
+            height={52}
+            onPress={handleSignOut}
+            shadowColor="#C5221F"
+            shadowOffset={{ width: 0, height: 4 }}
+            shadowOpacity={0.25}
+            shadowRadius={8}
+            marginTop="$2"
+          >
+            <XStack alignItems="center" justifyContent="center" gap="$2">
+              <Text fontSize={17} color="#FFFFFF">
+                🚪
+              </Text>
+              <Text fontSize={16} fontWeight="800" color="#FFFFFF">
+                Đăng xuất
+              </Text>
+            </XStack>
+          </Button>
+        </YStack>
+      </ScrollView>
+
+      {/* MODAL CHỈNH SỬA THÔNG TIN CÁ NHÂN & THÔNG SỐ CƠ THỂ */}
+      <EditProfileModal
+        visible={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        profile={profile}
+        userId={authUserId || session?.user?.id || ''}
+        onSuccess={handleUpdateSuccess}
+      />
+    </YStack>
   );
 }
