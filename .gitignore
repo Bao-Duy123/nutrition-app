@@ -39,3 +39,15 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# --- Antigravity / AI agent setup (local only) ---
+AGENTS.md
+AGENTS copy.md
+.agents/
+docs/
+supabase/rls.sql
+move-images.ps1
+antigravity-setup.zip
+
+# ---  URL supabase ---
+.env

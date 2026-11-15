@@ -3,9 +3,9 @@
  */
 
 export const CONFIG = {
-  SUPABASE_URL: 'https://pnsnwvskpnzmsqvnooru.supabase.co',
-  SUPABASE_ANON_KEY: 'sb_publishable_3V4udcEC-Zwy_IpPzrf6WA_C-G4KiVQ',
-  API_BASE_URL: 'https://api.example.com/v1',
+  SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL ?? '',
+  SUPABASE_ANON_KEY: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '',
+  API_BASE_URL: process.env.EXPO_PUBLIC_API_BASE_URL ?? 'https://api.example.com/v1',
   DEFAULT_DAILY_CALORIE_GOAL: 2000,
   DEFAULT_MACRO_RATIOS: {
     carbsPercentage: 0.5, // 50%
