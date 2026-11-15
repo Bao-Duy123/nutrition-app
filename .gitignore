@@ -48,3 +48,6 @@ docs/
 supabase/rls.sql
 move-images.ps1
 antigravity-setup.zip
+
+# ---  URL supabase ---
+.env

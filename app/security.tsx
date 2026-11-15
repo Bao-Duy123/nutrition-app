@@ -69,7 +69,6 @@ function PasswordField({
           fontSize={15}
           borderWidth={0}
           backgroundColor="transparent"
-          focusStyle={{ borderWidth: 0, outlineWidth: 0 }}
           secureTextEntry={!visible}
           value={value}
           onChangeText={onChangeText}
