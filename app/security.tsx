@@ -5,7 +5,6 @@ import {
   YStack,
   XStack,
   Text,
-  Input,
   Button,
   ScrollView,
   Spinner,
@@ -16,6 +15,7 @@ import { THEME } from '../src/constants/theme';
 import { useAppSelector } from '../src/store';
 import { authService } from '../src/services/authService';
 import { showAlert } from '../src/utils/showAlert';
+import { TextInput } from 'react-native';
 
 // Giới hạn chiều rộng để màn hình không bị giãn khi xem trên web / tablet
 const MAX_WIDTH = 480;
@@ -62,27 +62,30 @@ function PasswordField({
         paddingLeft="$3"
         height={50}
       >
-        <Input
-          ref={inputRef}
-          flex={1}
-          height={48}
-          fontSize={15}
-          borderWidth={0}
-          backgroundColor="transparent"
-          secureTextEntry={!visible}
-          value={value}
-          onChangeText={onChangeText}
-          placeholder={placeholder}
-          placeholderTextColor={THEME.colors.textLight}
-          autoCapitalize="none"
-          autoCorrect={false}
-          textContentType={textContentType}
-          autoComplete={autoComplete}
-          returnKeyType={returnKeyType}
-          onSubmitEditing={onSubmitEditing}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
-        />
+      <TextInput
+      ref={inputRef}
+      secureTextEntry={!visible}
+      value={value}
+      onChangeText={onChangeText}
+      placeholder={placeholder}
+      placeholderTextColor={THEME.colors.textLight}
+      autoCapitalize="none"
+      autoCorrect={false}
+      textContentType={textContentType}
+      autoComplete={autoComplete}
+      returnKeyType={returnKeyType}
+      onSubmitEditing={onSubmitEditing}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      style={{
+        flex: 1,
+        height: 48,
+        fontSize: 15,
+        borderWidth: 0,
+        backgroundColor: 'transparent',
+        color: THEME.colors.textMain,
+      }}
+    />
         <XStack
           minWidth={56}
           height={50}

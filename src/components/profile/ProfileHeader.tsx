@@ -120,28 +120,49 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
           flex={1}
           backgroundColor={THEME.colors.card}
           borderRadius={THEME.radius.lg}
-          padding="$3.5"
+          padding="$4"
           borderWidth={1}
           borderColor={THEME.colors.borderLight}
-          gap="$1.5"
+          gap="$2"
           shadowColor="#000"
           shadowOffset={{ width: 0, height: 2 }}
           shadowOpacity={0.03}
           shadowRadius={6}
         >
-          <XStack justifyContent="space-between" alignItems="center">
-            <Text fontSize={12} fontWeight="600" color={THEME.colors.textMuted}>
-              BMR cơ sở
-            </Text>
+          <XStack justifyContent="space-between" alignItems="center" gap="$1">
+            <XStack alignItems="center" gap="$1">
+              <Text fontSize={14} fontWeight="600" color={THEME.colors.textMuted}>
+                BMR cơ sở
+              </Text>
+              <View
+                width={18}
+                height={18}
+                borderRadius={9}
+                backgroundColor={THEME.colors.primaryLight}
+                alignItems="center"
+                justifyContent="center"
+                onPress={() =>
+                  showAlert(
+                    'BMR cơ sở là gì?',
+                    'BMR là năng lượng cơ thể ước tính cần để duy trì các hoạt động cơ bản khi nghỉ ngơi. Giá trị này được tính theo công thức Mifflin–St Jeor dựa trên cân nặng, chiều cao, tuổi và giới tính.'
+                  )
+                }
+                role="button"
+                aria-label="Giải thích BMR cơ sở"
+                cursor="pointer"
+              >
+                <Text fontSize={12} fontWeight="800" color={THEME.colors.primaryDark}>i</Text>
+              </View>
+            </XStack>
             <Text fontSize={16} color={THEME.colors.primary}>
               ⚡
             </Text>
           </XStack>
           <XStack alignItems="baseline" gap="$1">
-            <Text fontSize={20} fontWeight="800" color={THEME.colors.textMain}>
+            <Text fontSize={22} fontWeight="800" color={THEME.colors.textMain}>
               {bmrValue > 0 ? bmrValue.toLocaleString() : '---'}
             </Text>
-            <Text fontSize={12} color={THEME.colors.textMuted}>
+            <Text fontSize={13} color={THEME.colors.textMuted}>
               kcal
             </Text>
           </XStack>
@@ -152,28 +173,49 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
           flex={1}
           backgroundColor={THEME.colors.card}
           borderRadius={THEME.radius.lg}
-          padding="$3.5"
+          padding="$4"
           borderWidth={1}
           borderColor={THEME.colors.borderLight}
-          gap="$1.5"
+          gap="$2"
           shadowColor="#000"
           shadowOffset={{ width: 0, height: 2 }}
           shadowOpacity={0.03}
           shadowRadius={6}
         >
-          <XStack justifyContent="space-between" alignItems="center">
-            <Text fontSize={12} fontWeight="600" color={THEME.colors.textMuted}>
-              TDEE ước tính
-            </Text>
+          <XStack justifyContent="space-between" alignItems="center" gap="$1">
+            <XStack alignItems="center" gap="$1">
+              <Text fontSize={14} fontWeight="600" color={THEME.colors.textMuted}>
+                TDEE ước tính
+              </Text>
+              <View
+                width={18}
+                height={18}
+                borderRadius={9}
+                backgroundColor={THEME.colors.primaryLight}
+                alignItems="center"
+                justifyContent="center"
+                onPress={() =>
+                  showAlert(
+                    'TDEE ước tính là gì?',
+                    'TDEE là tổng năng lượng cơ thể ước tính tiêu hao trong một ngày, gồm năng lượng cơ bản và hoạt động thể chất. Giá trị được ước tính bằng BMR nhân với hệ số hoạt động; nhu cầu thực tế có thể khác nhau.'
+                  )
+                }
+                role="button"
+                aria-label="Giải thích TDEE ước tính"
+                cursor="pointer"
+              >
+                <Text fontSize={12} fontWeight="800" color={THEME.colors.primaryDark}>i</Text>
+              </View>
+            </XStack>
             <Text fontSize={16} color={THEME.colors.calories}>
               🔥
             </Text>
           </XStack>
           <XStack alignItems="baseline" gap="$1">
-            <Text fontSize={20} fontWeight="800" color={THEME.colors.textMain}>
+            <Text fontSize={22} fontWeight="800" color={THEME.colors.textMain}>
               {tdeeValue > 0 ? tdeeValue.toLocaleString() : '---'}
             </Text>
-            <Text fontSize={12} color={THEME.colors.textMuted}>
+            <Text fontSize={13} color={THEME.colors.textMuted}>
               kcal
             </Text>
           </XStack>

@@ -22,6 +22,8 @@ import { useAppDispatch } from '../src/store';
 import { setProfile, setSession } from '../src/store/slices/authSlice';
 import { setDailyCalorieGoal } from '../src/store/slices/dietSlice';
 import { showAlert } from '../src/utils/showAlert';
+import GeminiTestBox from "../src/components/GeminiTestBox";
+
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -206,20 +208,20 @@ export default function LoginScreen() {
       return;
     }
 
-    try {
-      const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail);
-      if (error) {
-        showAlert('Không thể gửi email', logSupabaseError('auth.resetPasswordForEmail', error));
-        return;
-      }
-      showAlert('Đã gửi email', 'Kiểm tra hộp thư để đặt lại mật khẩu.');
-    } catch (error) {
-      showAlert('Lỗi hệ thống', logUnexpectedError('auth.resetPasswordForEmail', error));
-    }
+    // try {
+    //   const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail);
+    //   if (error) {
+    //     showAlert('Không thể gửi email', logSupabaseError('auth.resetPasswordForEmail', error));
+    //     return;
+    //   }
+    //   showAlert('Đã gửi email', 'Kiểm tra hộp thư để đặt lại mật khẩu.');
+    // } catch (error) {
+    //   showAlert('Lỗi hệ thống', logUnexpectedError('auth.resetPasswordForEmail', error));
+    // }
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: THEME.colors.background }} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: THEME.colors.background }} edges={['top', 'right', 'bottom', 'left']}>
       <ScrollView
         flex={1}
         backgroundColor={THEME.colors.background}
@@ -405,21 +407,29 @@ export default function LoginScreen() {
           icon={<Text color="#4285F4" fontSize={19} fontWeight="800">G</Text>}
         />
 
-        <XStack justifyContent="center" gap="$2">
+        <XStack alignItems="center" justifyContent="center" gap="$2">
           <Text fontSize={14} color={THEME.colors.textMuted}>Chưa có tài khoản?</Text>
-          <Button backgroundColor="transparent" borderWidth={0} paddingHorizontal={0} onPress={() => router.push('/register')}>
-            <Text fontSize={14} fontWeight="700" color={THEME.colors.primaryDark}>Đăng ký ngay</Text>
-          </Button>
+          <Text
+            fontSize={14}
+            fontWeight="700"
+            color={THEME.colors.primaryDark}
+            onPress={() => router.push('/register')}
+            role="link"
+          >
+            Đăng ký ngay
+          </Text>
         </XStack>
 
         <View
           alignSelf="center"
           paddingHorizontal="$3"
           paddingVertical="$1"
-          backgroundColor={THEME.colors.primaryLight}
-          borderRadius={THEME.radius.full}
+         
         >
-          <Text fontSize={11} color={THEME.colors.textMuted}>● Bảo mật bởi Supabase Auth</Text>
+
+          {/* {__DEV__ && <GeminiTestBox />} */}
+           <GeminiTestBox />
+
         </View>
         </YStack>
       </ScrollView>

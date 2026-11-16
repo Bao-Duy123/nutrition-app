@@ -158,7 +158,7 @@ export default function RegisterScreen() {
   const goalOptions = ['Giảm cân', 'Giữ cân', 'Tăng cân'];
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: THEME.colors.background }} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: THEME.colors.background }} edges={['top', 'right', 'bottom', 'left']}>
       <ScrollView
         flex={1}
         backgroundColor={THEME.colors.background}
@@ -441,11 +441,17 @@ export default function RegisterScreen() {
           </YStack>
         )}
 
-        <XStack justifyContent="center" gap="$2">
+        <XStack alignItems="center" justifyContent="center" gap="$2">
           <Text fontSize={14} color={THEME.colors.textMuted}>Đã có tài khoản?</Text>
-          <Button backgroundColor="transparent" borderWidth={0} paddingHorizontal={0} onPress={() => router.push('/login')}>
-            <Text fontSize={14} fontWeight="700" color={THEME.colors.primaryDark}>Đăng nhập ngay</Text>
-          </Button>
+          <Text
+            fontSize={14}
+            fontWeight="700"
+            color={THEME.colors.primaryDark}
+            onPress={() => router.push('/login')}
+            accessibilityRole="link"
+          >
+            Đăng nhập ngay
+          </Text>
         </XStack>
       </YStack>
       </ScrollView>
