@@ -11,7 +11,7 @@ import { THEME } from '../../src/constants/theme';
 import { Profile } from '../../src/types/database';
 import { getProfile } from '../../src/services/profileService';
 import { supabase, logSupabaseError, logUnexpectedError } from '../../src/services/supabase';
-import { showAlert } from '../../src/utils/showAlert';
+import { useAppModal } from '../../src/components/ModalProvider';
 import { ProfileHeader } from '../../src/components/profile/ProfileHeader';
 import { ProfileMenuList } from '../../src/components/profile/ProfileMenuList';
 import { EditProfileModal } from '../../src/components/profile/EditProfileModal';
@@ -19,6 +19,7 @@ import { EditProfileModal } from '../../src/components/profile/EditProfileModal'
 export default function ProfileScreen() {
   const router = useRouter();
   const dispatch = useAppDispatch();
+  const modal = useAppModal();
 
   // Lấy session & user từ Redux store (hoặc fallback auth)
   const { session, userId: authUserId } = useAppSelector((state) => state.auth);
@@ -104,33 +105,42 @@ export default function ProfileScreen() {
 
   // Đăng xuất khỏi Supabase Auth và xóa toàn bộ state
   const handleSignOut = async () => {
-    showAlert('Xác nhận đăng xuất', 'Bạn có chắc chắn muốn đăng xuất khỏi tài khoản?', [
-      { text: 'Hủy', style: 'cancel' },
-      {
-        text: 'Đăng xuất',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            const { error } = await supabase.auth.signOut();
-            if (error) {
-              showAlert('Không thể đăng xuất', logSupabaseError('auth.signOut', error));
-              return;
-            }
+    const ok = await modal.confirm({
+      title: 'Xác nhận đăng xuất',
+      message: 'Bạn có chắc chắn muốn đăng xuất khỏi tài khoản?',
+      confirmText: 'Đăng xuất',
+      cancelText: 'Hủy',
+      destructive: true,
+    });
 
-            // Xóa state trong toàn bộ store
-            dispatch(clearAuth());
-            dispatch(clearProfile());
-            dispatch(setTodayMeals([]));
-            dispatch(setDailyCalorieGoal(CONFIG.DEFAULT_DAILY_CALORIE_GOAL));
+    if (!ok) return;
 
-            // Chuyển hướng về trang đăng nhập
-            router.replace('/login');
-          } catch (error) {
-            showAlert('Lỗi', logUnexpectedError('auth.signOut', error));
-          }
-        },
-      },
-    ]);
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        void modal.alert({
+          type: 'error',
+          title: 'Không thể đăng xuất',
+          message: logSupabaseError('auth.signOut', error),
+        });
+        return;
+      }
+
+      // Xóa state trong toàn bộ store
+      dispatch(clearAuth());
+      dispatch(clearProfile());
+      dispatch(setTodayMeals([]));
+      dispatch(setDailyCalorieGoal(CONFIG.DEFAULT_DAILY_CALORIE_GOAL));
+
+      // Chuyển hướng về trang đăng nhập
+      router.replace('/login');
+    } catch (error) {
+      void modal.alert({
+        type: 'error',
+        title: 'Lỗi',
+        message: logUnexpectedError('auth.signOut', error),
+      });
+    }
   };
 
   // 1. TRẠNG THÁI ĐANG TẢI (LOADING STATE)
@@ -209,7 +219,13 @@ export default function ProfileScreen() {
             borderColor={THEME.colors.borderLight}
             alignItems="center"
             justifyContent="center"
-            onPress={() => showAlert('Thông báo', 'Bạn không có thông báo mới.')}
+            onPress={() =>
+              void modal.alert({
+                type: 'info',
+                title: 'Thông báo',
+                message: 'Bạn không có thông báo mới.',
+              })
+            }
             cursor="pointer"
           >
             <Text fontSize={17}>🔔</Text>
@@ -290,7 +306,13 @@ export default function ProfileScreen() {
                 profile={profile}
                 onPressHealthProfile={() => setIsEditModalOpen(true)}
                 onPressBodyStats={() => setIsEditModalOpen(true)}
-                onPressReminders={() => showAlert('Nhắc nhở', 'Tính năng nhắc nhở bữa ăn đang được kích hoạt.')}
+                onPressReminders={() =>
+                  void modal.alert({
+                    type: 'info',
+                    title: 'Nhắc nhở',
+                    message: 'Tính năng nhắc nhở bữa ăn đang được kích hoạt.',
+                  })
+                }
                 onPressChangePassword={() => router.push('/security')}
               />
             </>

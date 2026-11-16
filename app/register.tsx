@@ -16,11 +16,13 @@ import { useAppDispatch } from '../src/store';
 import { setProfile, setSession } from '../src/store/slices/authSlice';
 import { setDailyCalorieGoal } from '../src/store/slices/dietSlice';
 import { calculateBMR, calculateSuggestedCalorie, calculateTDEE } from '../src/utils/calculateMacro';
-import { showAlert } from '../src/utils/showAlert';
+import { useAppModal } from '../src/components/ModalProvider';
+import { isValidEmail, validatePassword } from '../src/utils/validation';
 
 export default function RegisterScreen() {
   const router = useRouter();
   const dispatch = useAppDispatch();
+  const modal = useAppModal();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -44,23 +46,44 @@ export default function RegisterScreen() {
     const parsedTargetWeight = Number(targetWeight);
 
     if (!fullName.trim() || !normalizedEmail || !password || !confirmPassword) {
-      showAlert('Thiếu thông tin', 'Vui lòng điền đầy đủ họ tên, email và mật khẩu.');
+      void modal.alert({
+        type: 'warning',
+        title: 'Thiếu thông tin',
+        message: 'Vui lòng điền đầy đủ họ tên, email và mật khẩu.',
+      });
       return;
     }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
-      showAlert('Email không hợp lệ', 'Vui lòng kiểm tra lại địa chỉ email.');
+    if (!isValidEmail(normalizedEmail)) {
+      void modal.alert({
+        type: 'error',
+        title: 'Email không hợp lệ',
+        message: 'Vui lòng kiểm tra lại địa chỉ email.',
+      });
       return;
     }
-    if (password.length < 8) {
-      showAlert('Mật khẩu chưa đủ mạnh', 'Mật khẩu cần có ít nhất 8 ký tự.');
+    const valResult = validatePassword(password);
+    if (!valResult.isValid) {
+      void modal.alert({
+        type: 'warning',
+        title: 'Mật khẩu chưa đủ mạnh',
+        message: valResult.message || 'Mật khẩu cần có ít nhất 8 ký tự.',
+      });
       return;
     }
     if (password !== confirmPassword) {
-      showAlert('Mật khẩu không khớp', 'Vui lòng nhập lại mật khẩu xác nhận.');
+      void modal.alert({
+        type: 'error',
+        title: 'Mật khẩu không khớp',
+        message: 'Vui lòng nhập lại mật khẩu xác nhận.',
+      });
       return;
     }
     if (!acceptedTerms) {
-      showAlert('Cần xác nhận', 'Vui lòng đồng ý với điều khoản để tiếp tục.');
+      void modal.alert({
+        type: 'warning',
+        title: 'Cần xác nhận',
+        message: 'Vui lòng đồng ý với điều khoản để tiếp tục.',
+      });
       return;
     }
     if (
@@ -69,7 +92,11 @@ export default function RegisterScreen() {
       !Number.isFinite(parsedWeight) || parsedWeight <= 0 ||
       !Number.isFinite(parsedTargetWeight) || parsedTargetWeight <= 0
     ) {
-      showAlert('Thông số chưa hợp lệ', 'Kiểm tra lại tuổi, chiều cao và cân nặng.');
+      void modal.alert({
+        type: 'warning',
+        title: 'Thông số chưa hợp lệ',
+        message: 'Kiểm tra lại tuổi, chiều cao và cân nặng.',
+      });
       return;
     }
 
@@ -95,7 +122,11 @@ export default function RegisterScreen() {
 
       if (error) {
         const detail = logSupabaseError('auth.signUp', error);
-        showAlert('Đăng ký thất bại', detail);
+        void modal.alert({
+          type: 'error',
+          title: 'Đăng ký thất bại',
+          message: detail,
+        });
         return;
       }
 
@@ -103,28 +134,40 @@ export default function RegisterScreen() {
         console.error('[Supabase][auth.signUp] Signup succeeded without a user object.', {
           hasSession: Boolean(data.session),
         });
-        showAlert(
-          'Đăng ký chưa hoàn tất',
-          'Supabase không trả về tài khoản. Kiểm tra cấu hình Auth và log [Supabase][auth.signUp].'
-        );
+        void modal.alert({
+          type: 'error',
+          title: 'Đăng ký chưa hoàn tất',
+          message: 'Supabase không trả về tài khoản. Kiểm tra cấu hình Auth và log [Supabase][auth.signUp].',
+        });
         return;
       }
 
       if (data.user.identities?.length === 0) {
-        showAlert(
-          'Email đã được đăng ký',
-          'Email này đã có tài khoản. Hãy đăng nhập hoặc dùng chức năng Quên mật khẩu.',
-          [{ text: 'Đến đăng nhập', onPress: () => router.replace('/login') }]
-        );
+        void modal
+          .alert({
+            type: 'warning',
+            title: 'Email đã được đăng ký',
+            message: 'Email này đã có tài khoản. Hãy đăng nhập hoặc dùng chức năng Quên mật khẩu.',
+            confirmText: 'Đến đăng nhập',
+          })
+          .then(() => {
+            router.replace('/login');
+          });
         return;
       }
 
       if (!data.session) {
-        showAlert(
-          'Kiểm tra email để xác nhận',
-          'Tài khoản đã tạo. Hãy xác nhận email, sau đó đăng nhập. Hồ sơ sức khỏe sẽ được lưu tự động sau lần đăng nhập đầu tiên.',
-          [{ text: 'Đến đăng nhập', onPress: () => router.replace('/login') }]
-        );
+        void modal
+          .alert({
+            type: 'info',
+            title: 'Kiểm tra email để xác nhận',
+            message:
+              'Tài khoản đã tạo. Hãy xác nhận email, sau đó đăng nhập. Hồ sơ sức khỏe sẽ được lưu tự động sau lần đăng nhập đầu tiên.',
+            confirmText: 'Đến đăng nhập',
+          })
+          .then(() => {
+            router.replace('/login');
+          });
         return;
       }
 
@@ -136,11 +179,16 @@ export default function RegisterScreen() {
         const detail = profileError
           ? formatSupabaseError(profileError)
           : 'Supabase không trả về hồ sơ sau khi lưu. Kiểm tra log [Supabase][profiles.upsert].';
-        showAlert(
-          'Tài khoản đã tạo nhưng chưa lưu được hồ sơ',
-          detail,
-          [{ text: 'Đến đăng nhập', onPress: () => router.replace('/login') }]
-        );
+        void modal
+          .alert({
+            type: 'warning',
+            title: 'Tài khoản đã tạo nhưng chưa lưu được hồ sơ',
+            message: detail,
+            confirmText: 'Đến đăng nhập',
+          })
+          .then(() => {
+            router.replace('/login');
+          });
         return;
       }
 
@@ -149,7 +197,11 @@ export default function RegisterScreen() {
       dispatch(setDailyCalorieGoal(dailyCalorieGoal));
       router.replace('/(tabs)');
     } catch (error) {
-      showAlert('Lỗi hệ thống', logUnexpectedError('auth.signUp', error));
+      void modal.alert({
+        type: 'error',
+        title: 'Lỗi hệ thống',
+        message: logUnexpectedError('auth.signUp', error),
+      });
     } finally {
       setLoading(false);
     }
@@ -326,15 +378,27 @@ export default function RegisterScreen() {
             title="Tiếp tục thiết lập hồ sơ  →"
             onPress={() => {
               if (!fullName.trim() || !email.trim() || !password || !confirmPassword) {
-                showAlert('Thiếu thông tin', 'Vui lòng điền họ tên, email và mật khẩu.');
+                void modal.alert({
+                  type: 'warning',
+                  title: 'Thiếu thông tin',
+                  message: 'Vui lòng điền họ tên, email và mật khẩu.',
+                });
                 return;
               }
               if (password.length < 8 || password !== confirmPassword) {
-                showAlert('Kiểm tra mật khẩu', 'Mật khẩu cần đủ 8 ký tự và khớp với phần xác nhận.');
+                void modal.alert({
+                  type: 'warning',
+                  title: 'Kiểm tra mật khẩu',
+                  message: 'Mật khẩu cần đủ 8 ký tự và khớp với phần xác nhận.',
+                });
                 return;
               }
               if (!acceptedTerms) {
-                showAlert('Cần xác nhận', 'Vui lòng đồng ý với điều khoản để tiếp tục.');
+                void modal.alert({
+                  type: 'warning',
+                  title: 'Cần xác nhận',
+                  message: 'Vui lòng đồng ý với điều khoản để tiếp tục.',
+                });
                 return;
               }
               setShowHealthProfile(true);
@@ -448,7 +512,7 @@ export default function RegisterScreen() {
             fontWeight="700"
             color={THEME.colors.primaryDark}
             onPress={() => router.push('/login')}
-            accessibilityRole="link"
+            role="link"
           >
             Đăng nhập ngay
           </Text>
