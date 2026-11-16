@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'expo-router';
-import { Button, Input, ScrollView, Text, View, XStack, YStack } from 'tamagui';
+import { Button, ScrollView, Text, View, XStack, YStack } from 'tamagui';
+import {Input} from '../src/components/AppInput'
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CustomButton } from '../src/components/CustomButton';
 import { THEME } from '../src/constants/theme';

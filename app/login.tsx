@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'expo-router';
 import { Platform } from 'react-native';
-import { Button, Input, ScrollView, Text, View, XStack, YStack } from 'tamagui';
+import { Button, ScrollView, Text, View, XStack, YStack } from 'tamagui';
+import {Input} from '../src/components/AppInput'
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { makeRedirectUri } from 'expo-auth-session';

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { YStack, XStack, Text, Button, Input, ScrollView, Spinner, View } from 'tamagui';
+import { YStack, XStack, Text, Button, ScrollView, Spinner, View } from 'tamagui';
+import {Input} from '../../src/components/AppInput'
 import { Alert } from 'react-native';
 import { useAppSelector, useAppDispatch } from '../../src/store';
 import { setProfile } from '../../src/store/slices/authSlice';

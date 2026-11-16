@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { YStack, XStack, Text, Input, ScrollView, Spinner, Button } from 'tamagui';
+import { YStack, XStack, Text, ScrollView, Spinner, Button } from 'tamagui';
+import {Input} from '../../src/components/AppInput';
 import { Alert } from 'react-native';
 import { useAppDispatch, useAppSelector } from '../../src/store';
 import { addMealItem, setFoods } from '../../src/store/slices/dietSlice';
