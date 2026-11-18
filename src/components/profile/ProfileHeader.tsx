@@ -47,7 +47,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
               source={{ uri: profile.avatar_url }}
               width={100}
               height={100}
-              resizeMode="cover"
+              objectFit="cover"
             />
           ) : (
             <Text fontSize={42}>🧑</Text>

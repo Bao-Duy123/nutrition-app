@@ -43,3 +43,32 @@ export const maskEmail = (email: string): string => {
   }
   return `${name[0]}***${name[name.length - 1]}@${domain}`;
 };
+
+/**
+ * Kiểm tra xem hồ sơ người dùng đã hoàn thành onboarding/nhập thông số sức khỏe bắt buộc chưa.
+ * Các thông tin bắt buộc: age (>=13), height (>0), current_weight (>0), target_weight (>0).
+ */
+export const isProfileOnboarded = (profile: {
+  age?: number | null;
+  height?: number | null;
+  current_weight?: number | null;
+  target_weight?: number | null;
+} | null | undefined): boolean => {
+  if (!profile) return false;
+  const { age, height, current_weight, target_weight } = profile;
+  return (
+    typeof age === 'number' &&
+    Number.isFinite(age) &&
+    age >= 13 &&
+    typeof height === 'number' &&
+    Number.isFinite(height) &&
+    height > 0 &&
+    typeof current_weight === 'number' &&
+    Number.isFinite(current_weight) &&
+    current_weight > 0 &&
+    typeof target_weight === 'number' &&
+    Number.isFinite(target_weight) &&
+    target_weight > 0
+  );
+};
+

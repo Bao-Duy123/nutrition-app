@@ -24,6 +24,7 @@ import { setDailyCalorieGoal } from '../src/store/slices/dietSlice';
 import { useAppModal } from '../src/components/ModalProvider';
 import { ForgotPasswordModal } from '../src/components/ForgotPasswordModal';
 import GeminiTestBox from "../src/components/GeminiTestBox";
+import { isProfileOnboarded } from '../src/utils/validation';
 
 
 WebBrowser.maybeCompleteAuthSession();
@@ -68,24 +69,28 @@ export default function LoginScreen() {
     }
 
     const { data: profile, error: profileError } = await ensureUserProfile(session.user);
-    dispatch(setProfile(profile));
-    dispatch(setDailyCalorieGoal(profile?.daily_calorie_goal ?? CONFIG.DEFAULT_DAILY_CALORIE_GOAL));
 
     if (profileError) {
       void modal
         .alert({
-          type: 'warning',
-          title: 'Đăng nhập được nhưng chưa tải được hồ sơ',
-          message: `Phiên đăng nhập hợp lệ nhưng hồ sơ chưa thể đọc/tạo.\n\n${formatSupabaseError(profileError)}`,
-          confirmText: 'Vào Dashboard',
-        })
-        .then(() => {
-          router.replace('/(tabs)');
+          type: 'error',
+          title: 'Không thể tải hồ sơ người dùng',
+          message: `Đăng nhập thành công nhưng chưa thể lấy thông tin hồ sơ.\n\n${formatSupabaseError(profileError)}`,
         });
       return;
     }
 
-    router.replace('/(tabs)');
+    dispatch(setProfile(profile));
+    if (profile?.daily_calorie_goal) {
+      dispatch(setDailyCalorieGoal(profile.daily_calorie_goal));
+    }
+
+    // Kiểm tra xem người dùng đã hoàn thành onboarding / nhập thông số sức khỏe chưa
+    if (isProfileOnboarded(profile)) {
+      router.replace('/(tabs)');
+    } else {
+      router.replace('/onboarding');
+    }
   };
 
   const handleLogin = async () => {

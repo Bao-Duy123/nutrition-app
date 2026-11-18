@@ -49,7 +49,7 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
   const [loading, setLoading] = useState(false);
 
   // Refs cho các ô OTP
-  const otpInputRefs = useRef<Array<TextInput | null>>([]);
+  const otpInputRefs = useRef<Array<any>>([]);
 
   // Khởi tạo email khi modal mở
   useEffect(() => {
