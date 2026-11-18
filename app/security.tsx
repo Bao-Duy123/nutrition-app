@@ -5,7 +5,6 @@ import {
   YStack,
   XStack,
   Text,
-  Input,
   Button,
   ScrollView,
   Spinner,
@@ -15,7 +14,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { THEME } from '../src/constants/theme';
 import { useAppSelector } from '../src/store';
 import { authService } from '../src/services/authService';
-import { showAlert } from '../src/utils/showAlert';
+import { useAppModal } from '../src/components/ModalProvider';
+import { TextInput } from 'react-native';
 
 // Giới hạn chiều rộng để màn hình không bị giãn khi xem trên web / tablet
 const MAX_WIDTH = 480;
@@ -62,39 +62,43 @@ function PasswordField({
         paddingLeft="$3"
         height={50}
       >
-        <Input
-          ref={inputRef}
-          flex={1}
-          height={48}
-          fontSize={15}
-          borderWidth={0}
+      <TextInput
+      ref={inputRef}
+      secureTextEntry={!visible}
+      value={value}
+      onChangeText={onChangeText}
+      placeholder={placeholder}
+      placeholderTextColor={THEME.colors.textLight}
+      autoCapitalize="none"
+      autoCorrect={false}
+      textContentType={textContentType}
+      autoComplete={autoComplete}
+      returnKeyType={returnKeyType}
+      onSubmitEditing={onSubmitEditing}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      style={{
+        flex: 1,
+        height: 48,
+        fontSize: 15,
+        borderWidth: 0,
+        backgroundColor: 'transparent',
+        color: THEME.colors.textMain,
+      }}
+    />
+        <Button
           backgroundColor="transparent"
-          secureTextEntry={!visible}
-          value={value}
-          onChangeText={onChangeText}
-          placeholder={placeholder}
-          placeholderTextColor={THEME.colors.textLight}
-          autoCapitalize="none"
-          autoCorrect={false}
-          textContentType={textContentType}
-          autoComplete={autoComplete}
-          returnKeyType={returnKeyType}
-          onSubmitEditing={onSubmitEditing}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
-        />
-        <XStack
+          borderWidth={0}
           minWidth={56}
           height={50}
           alignItems="center"
           justifyContent="center"
           onPress={() => setVisible((prev) => !prev)}
-          pressStyle={{ opacity: 0.6 }}
         >
           <Text fontSize={13} fontWeight="600" color={THEME.colors.primary}>
             {visible ? 'Ẩn' : 'Hiện'}
           </Text>
-        </XStack>
+        </Button>
       </XStack>
     </YStack>
   );
@@ -125,6 +129,7 @@ function Rule({ ok, text }: { ok: boolean; text: string }) {
 
 export default function SecurityScreen() {
   const router = useRouter();
+  const modal = useAppModal();
   const { session, profile } = useAppSelector((state) => state.auth);
 
   // Form input states
@@ -160,33 +165,57 @@ export default function SecurityScreen() {
   const handleChangePassword = async () => {
     // 1. Kiểm tra rỗng
     if (!currentPassword) {
-      showAlert('Lỗi', 'Vui lòng nhập mật khẩu hiện tại.');
+      void modal.alert({
+        type: 'warning',
+        title: 'Lỗi',
+        message: 'Vui lòng nhập mật khẩu hiện tại.',
+      });
       return;
     }
     if (!newPassword) {
-      showAlert('Lỗi', 'Vui lòng nhập mật khẩu mới.');
+      void modal.alert({
+        type: 'warning',
+        title: 'Lỗi',
+        message: 'Vui lòng nhập mật khẩu mới.',
+      });
       return;
     }
     if (!confirmPassword) {
-      showAlert('Lỗi', 'Vui lòng xác nhận mật khẩu mới.');
+      void modal.alert({
+        type: 'warning',
+        title: 'Lỗi',
+        message: 'Vui lòng xác nhận mật khẩu mới.',
+      });
       return;
     }
 
     // 2. Validation: new password ít nhất 6 ký tự
     if (newPassword.length < 6) {
-      showAlert('Lỗi', 'Mật khẩu mới phải có ít nhất 6 ký tự.');
+      void modal.alert({
+        type: 'warning',
+        title: 'Lỗi',
+        message: 'Mật khẩu mới phải có ít nhất 6 ký tự.',
+      });
       return;
     }
 
     // 3. Validation: new password khác current password
     if (newPassword === currentPassword) {
-      showAlert('Lỗi', 'Mật khẩu mới phải khác mật khẩu hiện tại.');
+      void modal.alert({
+        type: 'warning',
+        title: 'Lỗi',
+        message: 'Mật khẩu mới phải khác mật khẩu hiện tại.',
+      });
       return;
     }
 
     // 4. Validation: confirm must match
     if (newPassword !== confirmPassword) {
-      showAlert('Lỗi', 'Mật khẩu xác nhận không trùng khớp.');
+      void modal.alert({
+        type: 'warning',
+        title: 'Lỗi',
+        message: 'Mật khẩu xác nhận không trùng khớp.',
+      });
       return;
     }
 
@@ -196,21 +225,31 @@ export default function SecurityScreen() {
       const { error } = await authService.changePassword(currentPassword, newPassword);
 
       if (error) {
-        showAlert('Đổi mật khẩu thất bại', error.message);
+        void modal.alert({
+          type: 'error',
+          title: 'Đổi mật khẩu thất bại',
+          message: error.message,
+        });
         return;
       }
 
       // Success
-      showAlert('Thành công', 'Đổi mật khẩu thành công', [
-        {
-          text: 'OK',
-          onPress: () => {
-            router.back();
-          },
-        },
-      ]);
+      void modal
+        .alert({
+          type: 'success',
+          title: 'Thành công',
+          message: 'Đổi mật khẩu thành công',
+          confirmText: 'OK',
+        })
+        .then(() => {
+          router.back();
+        });
     } catch (err: any) {
-      showAlert('Lỗi', err?.message || 'Có lỗi xảy ra khi đổi mật khẩu.');
+      void modal.alert({
+        type: 'error',
+        title: 'Lỗi',
+        message: err?.message || 'Có lỗi xảy ra khi đổi mật khẩu.',
+      });
     } finally {
       setLoading(false);
     }
@@ -232,13 +271,15 @@ export default function SecurityScreen() {
             borderBottomColor={THEME.colors.borderLight}
             backgroundColor={THEME.colors.card}
           >
-            <XStack
+            <Button
+              backgroundColor="transparent"
+              borderWidth={0}
               height={52}
               paddingHorizontal="$4"
+              flexDirection="row"
               alignItems="center"
               gap="$2"
               onPress={() => router.back()}
-              pressStyle={{ opacity: 0.6 }}
             >
               <Text fontSize={22} fontWeight="700" color={THEME.colors.textMain}>
                 ‹
@@ -246,7 +287,7 @@ export default function SecurityScreen() {
               <Text fontSize={17} fontWeight="700" color={THEME.colors.textMain}>
                 Bảo mật tài khoản
               </Text>
-            </XStack>
+            </Button>
           </XStack>
 
           <ScrollView

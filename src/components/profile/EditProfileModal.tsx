@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, ScrollView, Platform } from 'react-native';
-import { YStack, XStack, Text, Button, Input, View, Spinner } from 'tamagui';
+import { YStack, XStack, Text, Button, View, Spinner } from 'tamagui';
+import {Input} from '../AppInput'
 import { THEME } from '../../constants/theme';
 import { Profile } from '../../types/database';
 import {

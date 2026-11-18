@@ -55,7 +55,7 @@ export const FoodCard: React.FC<FoodCardProps> = ({ food, onAddMeal, isLoading =
             source={{ uri: food.image_url }}
             width={60}
             height={60}
-            resizeMode="cover"
+            objectFit="cover"
             onError={() => setImageError(true)}
           />
         ) : (
