@@ -804,32 +804,6 @@ export const HomeCookingView: React.FC<HomeCookingViewProps> = ({ onSaveMeal, is
                 </XStack>
               </YStack>
             ))}
-
-            {/* Nút: Thêm nguyên liệu tiếp theo */}
-            <TouchableOpacity
-              activeOpacity={0.8}
-              onPress={() => setIsSearchFocused(true)}
-            >
-              <View
-                height={46}
-                borderRadius={23}
-                backgroundColor="#EFF6FF"
-                borderWidth={1.5}
-                borderColor="#BFDBFE"
-                alignItems="center"
-                justifyContent="center"
-                marginTop="$1.5"
-              >
-                <XStack alignItems="center" gap="$2">
-                  <Text fontSize={16} color="#0055D4" fontWeight="800">
-                    ⊕
-                  </Text>
-                  <Text fontSize={13.5} fontWeight="800" color="#0055D4">
-                    Thêm nguyên liệu tiếp theo vào mâm
-                  </Text>
-                </XStack>
-              </View>
-            </TouchableOpacity>
           </YStack>
         )}
       </YStack>
