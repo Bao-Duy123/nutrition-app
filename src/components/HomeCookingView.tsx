@@ -35,7 +35,7 @@ interface HomeCookingViewProps {
     fat: number;
     servingSize: string;
     details: string;
-  }) => Promise<void> | void;
+  }) => Promise<boolean | void> | boolean | void;
   isSaving?: boolean;
 }
 
@@ -241,7 +241,6 @@ export const HomeCookingView: React.FC<HomeCookingViewProps> = ({ onSaveMeal, is
   // Lưu bữa tự nấu vào nhật ký & DB
   const handleSave = async () => {
     if (plateItems.length === 0) {
-      Alert.alert('Mâm ăn trống', 'Vui lòng thêm ít nhất một nguyên liệu vào mâm ăn.');
       return;
     }
 
@@ -257,7 +256,7 @@ export const HomeCookingView: React.FC<HomeCookingViewProps> = ({ onSaveMeal, is
 
     const details = `Tự nấu: ${dishTitle}. Khối lượng: ${plateTotals.totalWeight}g. Nguyên liệu: ${ingredientDetails}. Dầu mỡ & gia vị: +${plateTotals.totalExtraCalories} kcal (~${plateTotals.totalOilGrams}g dầu).`;
 
-    onSaveMeal({
+    const result = await onSaveMeal({
       dishName: dishTitle,
       totalCalories: plateTotals.totalCalories,
       protein: plateTotals.totalProtein,
@@ -266,6 +265,12 @@ export const HomeCookingView: React.FC<HomeCookingViewProps> = ({ onSaveMeal, is
       servingSize: `${plateTotals.totalWeight}g mâm ăn`,
       details,
     });
+
+    if (result !== false) {
+      setPlateItems([]);
+      setInputGrams(100);
+      setSearchQuery('');
+    }
   };
 
   return (
@@ -944,19 +949,19 @@ export const HomeCookingView: React.FC<HomeCookingViewProps> = ({ onSaveMeal, is
       </YStack>
 
       {/* ========================================================================= */}
-      {/* 4. NÚT LƯU BỮA TỰ NẤU */}
+      {/* 4. NÚT LƯU BỮA TỰ NẤU (TỐI MÀU & VÔ HIỆU HÓA KHI MÂM RỖNG) */}
       {/* ========================================================================= */}
       <XStack alignItems="center" marginTop="$1" marginBottom="$4">
         <TouchableOpacity
           style={{ flex: 1 }}
           activeOpacity={0.85}
           onPress={handleSave}
-          disabled={isSaving}
+          disabled={isSaving || plateItems.length === 0}
         >
           <View
             height={54}
             borderRadius={27}
-            backgroundColor="#0055D4"
+            backgroundColor={plateItems.length === 0 ? '#94A3B8' : '#0055D4'}
             alignItems="center"
             justifyContent="center"
             style={THEME.shadow}
@@ -966,7 +971,11 @@ export const HomeCookingView: React.FC<HomeCookingViewProps> = ({ onSaveMeal, is
                 ✓
               </Text>
               <Text color="#FFFFFF" fontSize={15.5} fontWeight="800">
-                {isSaving ? 'Đang lưu...' : `Lưu bữa tự nấu (~${plateTotals.totalCalories} kcal)`}
+                {plateItems.length === 0
+                  ? 'Thêm nguyên liệu vào mâm để lưu'
+                  : isSaving
+                  ? 'Đang lưu...'
+                  : `Lưu bữa tự nấu (~${plateTotals.totalCalories} kcal)`}
               </Text>
             </XStack>
           </View>

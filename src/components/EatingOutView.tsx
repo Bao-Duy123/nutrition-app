@@ -25,7 +25,7 @@ interface EatingOutViewProps {
     fat: number;
     servingSize: string;
     details: string;
-  }) => Promise<void> | void;
+  }) => Promise<boolean | void> | boolean | void;
   isSaving?: boolean;
 }
 
@@ -38,10 +38,10 @@ export const EatingOutView: React.FC<EatingOutViewProps> = ({ onSaveMeal, isSavi
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isSearchFocused, setIsSearchFocused] = useState<boolean>(false);
   const [isFavorite, setIsFavorite] = useState<boolean>(false);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  // Món ăn hiện tại
-  const currentDish = selectedDish || dishesList[0] || null;
+  // Món ăn hiện tại: Chỉ hiển thị khi người dùng đã tìm và chọn món (mặc định vào là null)
+  const currentDish = selectedDish;
 
   // Truy vấn On-Demand từ Supabase Database
   useEffect(() => {
@@ -52,12 +52,6 @@ export const EatingOutView: React.FC<EatingOutViewProps> = ({ onSaveMeal, isSavi
         const results = await searchRestaurantDishes(searchQuery, 'all');
         if (!isCancelled) {
           setDishesList(results);
-          if (results.length > 0) {
-            // Nếu chưa chọn hoặc món hiện tại không nằm trong kết quả tìm kiếm mới
-            if (!selectedDish || !results.some((d) => d.id === selectedDish.id)) {
-              setSelectedDish(results[0]);
-            }
-          }
         }
       } catch (err) {
         console.warn('Lỗi tìm kiếm món quán từ database:', err);
@@ -185,7 +179,7 @@ export const EatingOutView: React.FC<EatingOutViewProps> = ({ onSaveMeal, isSavi
     setIsSearchFocused(false);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!currentDish) return;
     const portionName =
       portionType === 'standard' ? currentDish.standardPortion.label : currentDish.specialPortion.label;
@@ -197,7 +191,7 @@ export const EatingOutView: React.FC<EatingOutViewProps> = ({ onSaveMeal, isSavi
       toppingNames ? ` + Topping: ${toppingNames}` : ''
     }`;
 
-    onSaveMeal({
+    const result = await onSaveMeal({
       dishName: `${currentDish.name} (${portionName})`,
       totalCalories: calculation.totalCalories,
       protein: calculation.totalProtein,
@@ -206,6 +200,15 @@ export const EatingOutView: React.FC<EatingOutViewProps> = ({ onSaveMeal, isSavi
       servingSize: portionName,
       details,
     });
+
+    if (result !== false) {
+      setSelectedDish(null);
+      setToppingQuantities({});
+      setPortionType('standard');
+      setManualAdjustment(0);
+      setSearchQuery('');
+      setIsFavorite(false);
+    }
   };
 
   return (
@@ -348,12 +351,21 @@ export const EatingOutView: React.FC<EatingOutViewProps> = ({ onSaveMeal, isSavi
           borderColor="#E2E8F0"
           style={THEME.shadow}
         >
-          <Text fontSize={42}>🍽️</Text>
+          <View
+            width={72}
+            height={72}
+            borderRadius={36}
+            backgroundColor="#F0F7FF"
+            alignItems="center"
+            justifyContent="center"
+          >
+            <Text fontSize={36}>🍜</Text>
+          </View>
           <Text fontSize={17} fontWeight="800" color="#0F172A">
-            Chưa có món ăn trong database
+            Chưa chọn món ăn ngoài
           </Text>
-          <Text fontSize={13} color="#64748B" textAlign="center" lineHeight={19}>
-            Vui lòng thêm dữ liệu món ăn vào bảng foods trên Supabase hoặc gõ tìm kiếm từ khóa khác!
+          <Text fontSize={13.5} color="#64748B" textAlign="center" lineHeight={20} maxWidth={280}>
+            Gõ tên món (Phở, Cơm tấm, Bún bò...) vào thanh tìm kiếm phía trên để chọn món và điều chỉnh khẩu phần.
           </Text>
         </YStack>
       ) : (
@@ -799,36 +811,40 @@ export const EatingOutView: React.FC<EatingOutViewProps> = ({ onSaveMeal, isSavi
               </XStack>
             </YStack>
           </YStack>
-
-          {/* 3. NÚT LƯU BỮA ĂN */}
-          <XStack alignItems="center" marginTop="$2" marginBottom="$4">
-            <TouchableOpacity
-              style={{ flex: 1 }}
-              activeOpacity={0.85}
-              onPress={handleSave}
-              disabled={isSaving}
-            >
-              <View
-                height={54}
-                borderRadius={27}
-                backgroundColor="#0055D4"
-                alignItems="center"
-                justifyContent="center"
-                style={THEME.shadow}
-              >
-                <XStack alignItems="center" gap="$2">
-                  <Text fontSize={17} color="#FFFFFF">
-                    ⚡
-                  </Text>
-                  <Text color="#FFFFFF" fontSize={15.5} fontWeight="800">
-                    {isSaving ? 'Đang lưu...' : `Lưu bữa ăn (~${calculation.totalCalories} kcal)`}
-                  </Text>
-                </XStack>
-              </View>
-            </TouchableOpacity>
-          </XStack>
         </>
       )}
+
+      {/* 3. NÚT LƯU BỮA ĂN (TỐI MÀU & VÔ HIỆU HÓA KHI CHƯA CHỌN MÓN) */}
+      <XStack alignItems="center" marginTop="$2" marginBottom="$4">
+        <TouchableOpacity
+          style={{ flex: 1 }}
+          activeOpacity={0.85}
+          onPress={handleSave}
+          disabled={isSaving || !currentDish}
+        >
+          <View
+            height={54}
+            borderRadius={27}
+            backgroundColor={!currentDish ? '#94A3B8' : '#0055D4'}
+            alignItems="center"
+            justifyContent="center"
+            style={THEME.shadow}
+          >
+            <XStack alignItems="center" gap="$2">
+              <Text fontSize={17} color="#FFFFFF">
+                ⚡
+              </Text>
+              <Text color="#FFFFFF" fontSize={15.5} fontWeight="800">
+                {!currentDish
+                  ? 'Chọn món ăn để lưu'
+                  : isSaving
+                  ? 'Đang lưu...'
+                  : `Lưu bữa ăn (~${calculation.totalCalories} kcal)`}
+              </Text>
+            </XStack>
+          </View>
+        </TouchableOpacity>
+      </XStack>
     </YStack>
   );
 };

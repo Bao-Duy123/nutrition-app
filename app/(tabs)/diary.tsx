@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { YStack, XStack, Text, ScrollView, View } from 'tamagui';
-import { TouchableOpacity, Alert } from 'react-native';
+import { TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAppDispatch, useAppSelector } from '../../src/store';
 import { addMealItem } from '../../src/store/slices/dietSlice';
@@ -9,10 +9,12 @@ import { THEME } from '../../src/constants/theme';
 import { MealTimeType } from '../../src/types/database';
 import { EatingOutView } from '../../src/components/EatingOutView';
 import { HomeCookingView } from '../../src/components/HomeCookingView';
+import { useAppModal } from '../../src/components/ModalProvider';
 
 export default function DiaryScreen() {
   const router = useRouter();
   const dispatch = useAppDispatch();
+  const modal = useAppModal();
   const { userId } = useAppSelector((state) => state.auth);
 
   // Tab chuyển đổi: 'eating_out' (Ăn ngoài) vs 'home_cooking' (Tự nấu)
@@ -37,15 +39,39 @@ export default function DiaryScreen() {
     fat: number;
     servingSize: string;
     details: string;
-  }) => {
-    if (!userId) {
-      Alert.alert('Chưa đăng nhập', 'Vui lòng đăng nhập tài khoản để lưu bữa ăn vào nhật ký.');
-      return;
-    }
-
+  }): Promise<boolean> => {
     try {
       setIsSaving(true);
       const mealTime = getDefaultMealTime();
+      const targetDate = new Date().toISOString().split('T')[0];
+
+      if (!userId) {
+        // Fallback lưu trực tiếp vào Redux khi chưa đăng nhập / chế độ khách
+        const localMeal = {
+          id: Date.now(),
+          user_id: 'guest',
+          food_id: 0,
+          quantity: 1,
+          meal_time: mealTime,
+          consumed_date: targetDate,
+          created_at: new Date().toISOString(),
+          dish_name: mealData.dishName,
+          serving_size: mealData.servingSize,
+          calories: mealData.totalCalories,
+          protein: mealData.protein,
+          carbs: mealData.carbs,
+          fat: mealData.fat,
+        };
+        dispatch(addMealItem(localMeal as any));
+        await modal.alert({
+          title: 'Đã lưu bữa ăn! 🎉',
+          message: `Đã ghi nhận ${mealData.dishName} (~${mealData.totalCalories} kcal) vào nhật ký.`,
+          type: 'success',
+          confirmText: 'Tuyệt vời',
+        });
+        return true;
+      }
+
       const { data, error } = await logCalculatedMeal(userId, {
         dishName: mealData.dishName,
         totalCalories: mealData.totalCalories,
@@ -57,26 +83,49 @@ export default function DiaryScreen() {
       });
 
       if (error) {
-        Alert.alert('Không thể lưu', error.message || 'Lỗi khi lưu vào cơ sở dữ liệu.');
+        console.warn('Lỗi Supabase khi lưu meal, fallback Redux:', error);
+        const fallbackMeal = {
+          id: Date.now(),
+          user_id: userId,
+          food_id: 0,
+          quantity: 1,
+          meal_time: mealTime,
+          consumed_date: targetDate,
+          created_at: new Date().toISOString(),
+          dish_name: mealData.dishName,
+          serving_size: mealData.servingSize,
+          calories: mealData.totalCalories,
+          protein: mealData.protein,
+          carbs: mealData.carbs,
+          fat: mealData.fat,
+        };
+        dispatch(addMealItem(fallbackMeal as any));
+        await modal.alert({
+          title: 'Đã lưu bữa ăn! 🎉',
+          message: `Đã ghi nhận ${mealData.dishName} (~${mealData.totalCalories} kcal) vào nhật ký.`,
+          type: 'success',
+          confirmText: 'Tuyệt vời',
+        });
+        return true;
       } else if (data) {
         dispatch(addMealItem(data));
-        Alert.alert(
-          'Đã lưu bữa ăn! 🎉',
-          `Đã ghi nhận ${mealData.dishName} (${mealData.totalCalories} kcal) vào nhật ký hôm nay.`,
-          [
-            {
-              text: 'Về Trang chủ',
-              onPress: () => router.push('/(tabs)'),
-            },
-            {
-              text: 'Ở lại',
-              style: 'cancel',
-            },
-          ]
-        );
+        await modal.alert({
+          title: 'Đã lưu bữa ăn! 🎉',
+          message: `Đã ghi nhận ${mealData.dishName} (~${mealData.totalCalories} kcal) vào nhật ký hôm nay.`,
+          type: 'success',
+          confirmText: 'Tuyệt vời',
+        });
+        return true;
       }
+      return false;
     } catch (err: any) {
-      Alert.alert('Lỗi ngoại lệ', err?.message || 'Đã có lỗi xảy ra.');
+      await modal.alert({
+        title: 'Lỗi ngoại lệ',
+        message: err?.message || 'Đã có lỗi xảy ra.',
+        type: 'error',
+        confirmText: 'Đóng',
+      });
+      return false;
     } finally {
       setIsSaving(false);
     }
