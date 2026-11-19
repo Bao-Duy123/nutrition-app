@@ -280,7 +280,7 @@ export const HomeCookingView: React.FC<HomeCookingViewProps> = ({ onSaveMeal, is
       {/* ========================================================================= */}
       <YStack
         backgroundColor="#FFFFFF"
-        padding="$4.5"
+        padding="$4"
         borderRadius={24}
         borderWidth={1}
         borderColor="#E2E8F0"
@@ -293,8 +293,8 @@ export const HomeCookingView: React.FC<HomeCookingViewProps> = ({ onSaveMeal, is
           </Text>
           <View
             backgroundColor="#EEF2FF"
-            paddingHorizontal="$3.5"
-            paddingVertical="$1.5"
+            paddingHorizontal="$3"
+            paddingVertical="$1"
             borderRadius={16}
           >
             <Text fontSize={12} fontWeight="700" color="#4F46E5">
@@ -412,7 +412,7 @@ export const HomeCookingView: React.FC<HomeCookingViewProps> = ({ onSaveMeal, is
         {currentIngredient && (
           <XStack
             backgroundColor="#F8FAFC"
-            padding="$3.5"
+            padding="$3"
             borderRadius={18}
             borderWidth={1}
             borderColor="#E2E8F0"
@@ -421,7 +421,7 @@ export const HomeCookingView: React.FC<HomeCookingViewProps> = ({ onSaveMeal, is
           >
             <XStack alignItems="center" gap="$3" flex={1}>
               <Text fontSize={26}>{currentIngredient.icon}</Text>
-              <YStack flex={1} gap="$0.5">
+              <YStack flex={1} gap="$1">
                 <Text fontSize={15} fontWeight="800" color="#0F172A">
                   {currentIngredient.name}
                 </Text>
@@ -439,11 +439,11 @@ export const HomeCookingView: React.FC<HomeCookingViewProps> = ({ onSaveMeal, is
         )}
 
         {/* Khối lượng cân (gam) với khoảng cách thoáng đãng */}
-        <YStack gap="$2.5">
+        <YStack gap="$2">
           <Text fontSize={13.5} fontWeight="700" color="#475569">
             Khối lượng cân:
           </Text>
-          <XStack alignItems="center" gap="$2.5">
+          <XStack alignItems="center" gap="$2">
             <XStack
               flex={1}
               alignItems="center"
@@ -452,14 +452,14 @@ export const HomeCookingView: React.FC<HomeCookingViewProps> = ({ onSaveMeal, is
               borderRadius={22}
               borderWidth={1.5}
               borderColor="#E2E8F0"
-              paddingHorizontal="$3.5"
+              paddingHorizontal="$3"
               height={48}
             >
               <TouchableOpacity
                 onPress={() => setInputGrams((prev) => Math.max(10, prev - 10))}
                 activeOpacity={0.6}
               >
-                <Text fontSize={22} fontWeight="700" color="#64748B" paddingHorizontal="$2.5">
+                <Text fontSize={22} fontWeight="700" color="#64748B" paddingHorizontal="$2">
                   -
                 </Text>
               </TouchableOpacity>
@@ -472,7 +472,7 @@ export const HomeCookingView: React.FC<HomeCookingViewProps> = ({ onSaveMeal, is
                 onPress={() => setInputGrams((prev) => prev + 10)}
                 activeOpacity={0.6}
               >
-                <Text fontSize={22} fontWeight="700" color="#64748B" paddingHorizontal="$2.5">
+                <Text fontSize={22} fontWeight="700" color="#64748B" paddingHorizontal="$2">
                   +
                 </Text>
               </TouchableOpacity>
@@ -482,8 +482,8 @@ export const HomeCookingView: React.FC<HomeCookingViewProps> = ({ onSaveMeal, is
               <View
                 backgroundColor="#F1F5F9"
                 borderRadius={20}
-                paddingHorizontal="$4"
-                paddingVertical="$2.5"
+                paddingHorizontal="$3"
+                paddingVertical="$2"
                 borderWidth={1}
                 borderColor="#E2E8F0"
               >
@@ -495,8 +495,8 @@ export const HomeCookingView: React.FC<HomeCookingViewProps> = ({ onSaveMeal, is
               <View
                 backgroundColor="#F1F5F9"
                 borderRadius={20}
-                paddingHorizontal="$4"
-                paddingVertical="$2.5"
+                paddingHorizontal="$3"
+                paddingVertical="$2"
                 borderWidth={1}
                 borderColor="#E2E8F0"
               >
@@ -536,7 +536,7 @@ export const HomeCookingView: React.FC<HomeCookingViewProps> = ({ onSaveMeal, is
       {/* ========================================================================= */}
       <YStack
         backgroundColor="#FFFFFF"
-        padding="$4.5"
+        padding="$4"
         borderRadius={24}
         borderWidth={1}
         borderColor="#E2E8F0"
@@ -549,8 +549,8 @@ export const HomeCookingView: React.FC<HomeCookingViewProps> = ({ onSaveMeal, is
           </Text>
           <View
             backgroundColor="#F1F5F9"
-            paddingHorizontal="$3.5"
-            paddingVertical="$1.5"
+            paddingHorizontal="$3"
+            paddingVertical="$1"
             borderRadius={14}
           >
             <Text fontSize={12} fontWeight="700" color="#475569">
@@ -560,14 +560,14 @@ export const HomeCookingView: React.FC<HomeCookingViewProps> = ({ onSaveMeal, is
         </XStack>
 
         {plateItems.length === 0 ? (
-          <YStack padding="$6" alignItems="center" justifyContent="center">
+          <YStack padding="$5" alignItems="center" justifyContent="center">
             <Text fontSize={34}>🥗</Text>
-            <Text fontSize={13.5} fontWeight="600" color="#94A3B8" marginTop="$2.5" textAlign="center">
+            <Text fontSize={13.5} fontWeight="600" color="#94A3B8" marginTop="$2" textAlign="center">
               Mâm ăn đang trống. Hãy chọn nguyên liệu và cân gram ở trên để thêm vào mâm!
             </Text>
           </YStack>
         ) : (
-          <YStack gap="$3.5">
+          <YStack gap="$3">
             {plateTotals.itemDetails.map((item) => (
               <YStack
                 key={item.id}
@@ -818,15 +818,15 @@ export const HomeCookingView: React.FC<HomeCookingViewProps> = ({ onSaveMeal, is
       {/* ========================================================================= */}
       <YStack
         backgroundColor="#FFFFFF"
-        padding="$4.5"
+        padding="$4"
         borderRadius={24}
         borderWidth={1}
         borderColor="#E2E8F0"
-        gap="$4.5"
+        gap="$4"
         style={THEME.shadow}
       >
         <XStack justifyContent="space-between" alignItems="center">
-          <YStack gap="$0.5">
+          <YStack gap="$1">
             <Text fontSize={11} color="#64748B" fontWeight="700" letterSpacing={0.5}>
               TỔNG KẾT NĂNG LƯỢNG MÂM CƠM
             </Text>
@@ -846,11 +846,11 @@ export const HomeCookingView: React.FC<HomeCookingViewProps> = ({ onSaveMeal, is
         {/* THẺ TỔNG HỢP: CALO GỐC VS CALO DẦU MỠ - GIÃN CÁCH RỘNG RÃI */}
         <YStack
           backgroundColor="#F8FAFC"
-          padding="$4.5"
+          padding="$4"
           borderRadius={20}
           borderWidth={1}
           borderColor="#E2E8F0"
-          gap="$3.5"
+          gap="$3"
         >
           <XStack justifyContent="space-between" alignItems="center" paddingVertical="$1">
             <Text fontSize={13.5} color="#475569" fontWeight="600">

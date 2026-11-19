@@ -212,9 +212,9 @@ export const EatingOutView: React.FC<EatingOutViewProps> = ({ onSaveMeal, isSavi
   };
 
   return (
-    <YStack gap="$5">
+    <YStack gap="$4">
       {/* 1. KHUNG TÌM KIẾM MÓN ĂN QUÁN VIỆT - THIẾT KẾ THOÁNG & TỐI GIẢN */}
-      <YStack gap="$2.5">
+      <YStack gap="$2">
         <XStack
           alignItems="center"
           backgroundColor="#FFFFFF"
@@ -343,10 +343,10 @@ export const EatingOutView: React.FC<EatingOutViewProps> = ({ onSaveMeal, isSavi
       ) : !currentDish ? (
         <YStack
           backgroundColor="#FFFFFF"
-          padding="$6"
+          padding="$5"
           borderRadius={24}
           alignItems="center"
-          gap="$2.5"
+          gap="$2"
           borderWidth={1}
           borderColor="#E2E8F0"
           style={THEME.shadow}
@@ -369,15 +369,15 @@ export const EatingOutView: React.FC<EatingOutViewProps> = ({ onSaveMeal, isSavi
         <>
           <YStack
             backgroundColor="#FFFFFF"
-            padding="$4.5"
+            padding="$4"
             borderRadius={24}
             borderWidth={1}
             borderColor="#E2E8F0"
-            gap="$4.5"
+            gap="$4"
             style={THEME.shadow}
           >
             {/* Hàng thông tin chính: Ảnh món ăn + Tên & Huy hiệu + Nút Tim */}
-            <XStack alignItems="center" gap="$3.5">
+            <XStack alignItems="center" gap="$3">
               <View
                 width={72}
                 height={72}
@@ -450,14 +450,14 @@ export const EatingOutView: React.FC<EatingOutViewProps> = ({ onSaveMeal, isSavi
                   onPress={() => setPortionType('standard')}
                 >
                   <View
-                    paddingVertical="$3.5"
-                    paddingHorizontal="$3.5"
+                    paddingVertical="$3"
+                    paddingHorizontal="$3"
                     borderRadius={18}
                     borderWidth={2}
                     borderColor={portionType === 'standard' ? '#0055D4' : '#E2E8F0'}
                     backgroundColor={portionType === 'standard' ? '#0055D4' : '#F8FAFC'}
                     alignItems="center"
-                    gap="$1.5"
+                    gap="$1"
                   >
                     <Text
                       fontSize={15}
@@ -483,14 +483,14 @@ export const EatingOutView: React.FC<EatingOutViewProps> = ({ onSaveMeal, isSavi
                   onPress={() => setPortionType('special')}
                 >
                   <View
-                    paddingVertical="$3.5"
-                    paddingHorizontal="$3.5"
+                    paddingVertical="$3"
+                    paddingHorizontal="$3"
                     borderRadius={18}
                     borderWidth={2}
                     borderColor={portionType === 'special' ? '#0055D4' : '#E2E8F0'}
                     backgroundColor={portionType === 'special' ? '#0055D4' : '#F8FAFC'}
                     alignItems="center"
-                    gap="$1.5"
+                    gap="$1"
                   >
                     <Text
                       fontSize={15}
@@ -692,11 +692,11 @@ export const EatingOutView: React.FC<EatingOutViewProps> = ({ onSaveMeal, isSavi
             {/* SECTION: TỔNG NĂNG LƯỢNG & MACROS */}
             <YStack
               backgroundColor="#EEF4FF"
-              padding="$4.5"
+              padding="$4"
               borderRadius={22}
               borderWidth={1}
               borderColor="#DBEAFE"
-              gap="$3.5"
+              gap="$3"
             >
               <XStack justifyContent="space-between" alignItems="center">
                 <YStack gap="$1">
@@ -723,9 +723,9 @@ export const EatingOutView: React.FC<EatingOutViewProps> = ({ onSaveMeal, isSavi
                   borderRadius={20}
                   borderWidth={1}
                   borderColor="#E2E8F0"
-                  paddingHorizontal="$2.5"
-                  paddingVertical="$1.5"
-                  gap="$1.5"
+                  paddingHorizontal="$2"
+                  paddingVertical="$1"
+                  gap="$1"
                 >
                   <TouchableOpacity
                     onPress={() => setManualAdjustment((prev) => prev - 25)}
@@ -757,17 +757,17 @@ export const EatingOutView: React.FC<EatingOutViewProps> = ({ onSaveMeal, isSavi
               </XStack>
 
               {/* 3 Thẻ Macro màu trắng bo tròn theo mockup */}
-              <XStack gap="$2.5">
+              <XStack gap="$2">
                 <View
                   flex={1}
                   backgroundColor="#FFFFFF"
                   paddingVertical="$3"
-                  paddingHorizontal="$1.5"
+                  paddingHorizontal="$2"
                   borderRadius={16}
                   alignItems="center"
                   borderWidth={1}
                   borderColor="#E2E8F0"
-                  gap="$0.5"
+                  gap="$1"
                 >
                   <Text fontSize={11} color="#0F172A" fontWeight="700">● Carb</Text>
                   <Text fontSize={17} fontWeight="900" color="#0F172A">{calculation.totalCarb}g</Text>
@@ -778,12 +778,12 @@ export const EatingOutView: React.FC<EatingOutViewProps> = ({ onSaveMeal, isSavi
                   flex={1}
                   backgroundColor="#FFFFFF"
                   paddingVertical="$3"
-                  paddingHorizontal="$1.5"
+                  paddingHorizontal="$2"
                   borderRadius={16}
                   alignItems="center"
                   borderWidth={1}
                   borderColor="#E2E8F0"
-                  gap="$0.5"
+                  gap="$1"
                 >
                   <Text fontSize={11} color="#059669" fontWeight="700">● Đạm</Text>
                   <Text fontSize={17} fontWeight="900" color="#0F172A">{calculation.totalProtein}g</Text>
@@ -794,12 +794,12 @@ export const EatingOutView: React.FC<EatingOutViewProps> = ({ onSaveMeal, isSavi
                   flex={1}
                   backgroundColor="#FFFFFF"
                   paddingVertical="$3"
-                  paddingHorizontal="$1.5"
+                  paddingHorizontal="$2"
                   borderRadius={16}
                   alignItems="center"
                   borderWidth={1}
                   borderColor="#E2E8F0"
-                  gap="$0.5"
+                  gap="$1"
                 >
                   <Text fontSize={11} color="#EA580C" fontWeight="700">● Béo</Text>
                   <Text fontSize={17} fontWeight="900" color="#0F172A">{calculation.totalFat}g</Text>

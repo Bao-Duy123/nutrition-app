@@ -10,11 +10,13 @@ import { MealTimeType } from '../../src/types/database';
 import { EatingOutView } from '../../src/components/EatingOutView';
 import { HomeCookingView } from '../../src/components/HomeCookingView';
 import { useAppModal } from '../../src/components/ModalProvider';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function DiaryScreen() {
   const router = useRouter();
   const dispatch = useAppDispatch();
   const modal = useAppModal();
+  const insets = useSafeAreaInsets();
   const { userId } = useAppSelector((state) => state.auth);
 
   // Tab chuyển đổi: 'eating_out' (Ăn ngoài) vs 'home_cooking' (Tự nấu)
@@ -135,11 +137,14 @@ export default function DiaryScreen() {
 
   return (
     <ScrollView
-      backgroundColor="#F8FAFC"
-      contentContainerStyle={{ paddingBottom: 90 }}
+      backgroundColor={THEME.colors.background}
+      contentContainerStyle={{
+        paddingTop: Math.max(insets.top, 16),
+        paddingBottom: Math.max(insets.bottom + 80, 90),
+      }}
       showsVerticalScrollIndicator={false}
     >
-      <YStack paddingHorizontal="$4.5" paddingTop="$4.5" gap="$4.5">
+      <YStack paddingHorizontal="$4" gap="$4">
         {/* ROW 1: HEADER TRANG */}
         <XStack alignItems="center" justifyContent="space-between">
           <XStack alignItems="center" gap="$3" flex={1}>
@@ -178,9 +183,9 @@ export default function DiaryScreen() {
         {/* ROW 2: BỘ CHUYỂN ĐỔI TAB: [🍽️ Ăn ngoài] vs [🍳 Tự nấu] */}
         <XStack
           backgroundColor="#E2E8F0"
-          padding="$1.5"
+          padding={6}
           borderRadius={24}
-          gap="$1.5"
+          gap={6}
         >
           <TouchableOpacity
             style={{ flex: 1 }}
