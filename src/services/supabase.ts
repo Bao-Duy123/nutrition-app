@@ -311,6 +311,34 @@ export const getTodayMeals = async (
 };
 
 /**
+ * Lấy danh sách các món ăn trong một khoảng ngày
+ */
+export const getMealsByDateRange = async (
+  userId: string,
+  startDate: string,
+  endDate: string
+): Promise<{ data: DailyMeal[]; error: any }> => {
+  try {
+    const { data, error } = await supabase
+      .from('daily_meals')
+      .select('*, foods:food_id(*)')
+      .eq('user_id', userId)
+      .gte('consumed_date', startDate)
+      .lte('consumed_date', endDate)
+      .order('consumed_date', { ascending: true });
+
+    if (error) {
+      console.warn('Lỗi khi lấy meals theo khoảng ngày:', error.message);
+      return { data: [], error };
+    }
+    return { data: (data as DailyMeal[]) || [], error: null };
+  } catch (err) {
+    console.warn('Lỗi ngoại lệ khi lấy meals theo khoảng ngày:', err);
+    return { data: [], error: err };
+  }
+};
+
+/**
  * Thêm một bữa ăn vào bảng daily_meals
  */
 export const addMeal = async (
