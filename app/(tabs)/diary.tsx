@@ -17,10 +17,16 @@ export default function DiaryScreen() {
 
   // Tab chuyển đổi: 'eating_out' (Ăn ngoài) vs 'home_cooking' (Tự nấu)
   const [activeTab, setActiveTab] = useState<'eating_out' | 'home_cooking'>('eating_out');
-  const [selectedMealTime, setSelectedMealTime] = useState<MealTimeType>('Trưa');
   const [isSaving, setIsSaving] = useState<boolean>(false);
 
-  const mealOptions: MealTimeType[] = ['Sáng', 'Trưa', 'Tối', 'Ăn vặt'];
+  // Xác định buổi ăn tự động theo thời điểm trong ngày
+  const getDefaultMealTime = (): MealTimeType => {
+    const hour = new Date().getHours();
+    if (hour < 10) return 'Sáng';
+    if (hour < 14) return 'Trưa';
+    if (hour < 17) return 'Ăn vặt';
+    return 'Tối';
+  };
 
   // Xử lý lưu bữa ăn đã qua tính toán
   const handleSaveMeal = async (mealData: {
@@ -39,6 +45,7 @@ export default function DiaryScreen() {
 
     try {
       setIsSaving(true);
+      const mealTime = getDefaultMealTime();
       const { data, error } = await logCalculatedMeal(userId, {
         dishName: mealData.dishName,
         totalCalories: mealData.totalCalories,
@@ -46,7 +53,7 @@ export default function DiaryScreen() {
         carbs: mealData.carbs,
         fat: mealData.fat,
         servingSize: mealData.servingSize,
-        mealTime: selectedMealTime,
+        mealTime,
       });
 
       if (error) {
@@ -55,7 +62,7 @@ export default function DiaryScreen() {
         dispatch(addMealItem(data));
         Alert.alert(
           'Đã lưu bữa ăn! 🎉',
-          `Đã ghi nhận ${mealData.dishName} (${mealData.totalCalories} kcal) vào bữa ${selectedMealTime} hôm nay.`,
+          `Đã ghi nhận ${mealData.dishName} (${mealData.totalCalories} kcal) vào nhật ký hôm nay.`,
           [
             {
               text: 'Về Trang chủ',
@@ -84,7 +91,7 @@ export default function DiaryScreen() {
       showsVerticalScrollIndicator={false}
     >
       <YStack paddingHorizontal="$4.5" paddingTop="$4.5" gap="$4.5">
-        {/* ROW 1: HEADER TRANG - CHUẨN XÁC THEO MOCKUP */}
+        {/* ROW 1: HEADER TRANG */}
         <XStack alignItems="center" justifyContent="space-between">
           <XStack alignItems="center" gap="$3" flex={1}>
             <TouchableOpacity
@@ -112,76 +119,14 @@ export default function DiaryScreen() {
             </TouchableOpacity>
 
             <YStack flex={1}>
-              <Text fontSize={19} fontWeight="900" color="#0F172A" numberOfLines={1}>
-                {isEatingOut ? 'Ăn ngoài & Tiệm quán' : 'Tự nấu & Cân tiểu ly'}
+              <Text fontSize={20} fontWeight="900" color="#0F172A" numberOfLines={1}>
+                {isEatingOut ? 'Ăn ngoài' : 'Tự nấu'}
               </Text>
-              {isEatingOut ? (
-                <Text fontSize={12.5} color="#64748B" fontWeight="500">
-                  Tùy biến món quán Việt
-                </Text>
-              ) : (
-                <XStack alignItems="center" gap="$1.5">
-                  <View width={6} height={6} borderRadius={3} backgroundColor="#10B981" />
-                  <Text fontSize={12} color="#64748B" fontWeight="500" numberOfLines={1}>
-                    Kiểm soát macro từng gram nguyên liệu thực tế
-                  </Text>
-                </XStack>
-              )}
             </YStack>
-          </XStack>
-
-          {/* Phía bên phải của Header: Kho dữ liệu hoặc Chuẩn 99% gram + Nút 3 chấm */}
-          <XStack alignItems="center" gap="$2.5">
-            {isEatingOut ? (
-              <TouchableOpacity activeOpacity={0.8}>
-                <View
-                  backgroundColor="#EEF2FF"
-                  borderWidth={1}
-                  borderColor="#E0E7FF"
-                  paddingHorizontal="$3"
-                  paddingVertical="$1.5"
-                  borderRadius={18}
-                >
-                  <XStack alignItems="center" gap="$1.5">
-                    <Text fontSize={13}>🗂️</Text>
-                    <Text fontSize={12} fontWeight="700" color="#4F46E5">
-                      Kho dữ liệu món Việt
-                    </Text>
-                  </XStack>
-                </View>
-              </TouchableOpacity>
-            ) : (
-              <View
-                backgroundColor="#ECFDF5"
-                borderWidth={1}
-                borderColor="#D1FAE5"
-                paddingHorizontal="$3"
-                paddingVertical="$1.5"
-                borderRadius={18}
-              >
-                <Text fontSize={12} fontWeight="800" color="#059669">
-                  Chuẩn 99% gram
-                </Text>
-              </View>
-            )}
-
-            <TouchableOpacity activeOpacity={0.7}>
-              <View
-                width={36}
-                height={36}
-                borderRadius={18}
-                alignItems="center"
-                justifyContent="center"
-              >
-                <Text fontSize={20} color="#64748B" fontWeight="900">
-                  ⋮
-                </Text>
-              </View>
-            </TouchableOpacity>
           </XStack>
         </XStack>
 
-        {/* ROW 2: BỘ CHUYỂN ĐỔI TAB: [🍽️ Ăn ngoài quán] vs [🍳 Tự nấu mâm ăn] */}
+        {/* ROW 2: BỘ CHUYỂN ĐỔI TAB: [🍽️ Ăn ngoài] vs [🍳 Tự nấu] */}
         <XStack
           backgroundColor="#E2E8F0"
           padding="$1.5"
@@ -202,11 +147,11 @@ export default function DiaryScreen() {
               style={isEatingOut ? THEME.shadow : undefined}
             >
               <Text
-                fontSize={13.5}
+                fontSize={14}
                 fontWeight={isEatingOut ? '800' : '600'}
                 color={isEatingOut ? '#0055D4' : '#64748B'}
               >
-                🍽️ Ăn ngoài quán
+                🍽️ Ăn ngoài
               </Text>
             </View>
           </TouchableOpacity>
@@ -225,53 +170,17 @@ export default function DiaryScreen() {
               style={!isEatingOut ? THEME.shadow : undefined}
             >
               <Text
-                fontSize={13.5}
+                fontSize={14}
                 fontWeight={!isEatingOut ? '800' : '600'}
                 color={!isEatingOut ? '#0055D4' : '#64748B'}
               >
-                🍳 Tự nấu mâm ăn
+                🍳 Tự nấu
               </Text>
             </View>
           </TouchableOpacity>
         </XStack>
 
-        {/* ROW 3: CHỌN BUỔI ĂN - THOẢI MÁI, GỌN GÀNG */}
-        <XStack alignItems="center" justifyContent="space-between" paddingHorizontal="$1" marginVertical="$0.5">
-          <Text fontSize={13.5} fontWeight="700" color="#475569">
-            Buổi ăn hôm nay:
-          </Text>
-          <XStack gap="$2">
-            {mealOptions.map((time) => {
-              const isSelected = selectedMealTime === time;
-              return (
-                <TouchableOpacity
-                  key={time}
-                  activeOpacity={0.8}
-                  onPress={() => setSelectedMealTime(time)}
-                >
-                  <View
-                    paddingHorizontal="$3.5"
-                    paddingVertical="$2"
-                    borderRadius={18}
-                    backgroundColor={isSelected ? '#0055D4' : '#FFFFFF'}
-                    borderWidth={1}
-                    borderColor={isSelected ? '#0055D4' : '#E2E8F0'}
-                  >
-                    <Text
-                      fontSize={12.5}
-                      fontWeight={isSelected ? '800' : '600'}
-                      color={isSelected ? '#FFFFFF' : '#64748B'}
-                    >
-                      {time}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-          </XStack>
-        </XStack>
-
-        {/* ROW 4: NỘI DUNG VIEW THEO TAB ĐƯỢC CHỌN */}
+        {/* ROW 3: NỘI DUNG VIEW THEO TAB ĐƯỢC CHỌN */}
         {isEatingOut ? (
           <EatingOutView onSaveMeal={handleSaveMeal} isSaving={isSaving} />
         ) : (

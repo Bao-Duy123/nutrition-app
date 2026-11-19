@@ -193,7 +193,7 @@ export const EatingOutView: React.FC<EatingOutViewProps> = ({ onSaveMeal, isSavi
       .map((t) => `${t.name} (x${t.quantity})`)
       .join(', ');
 
-    const details = `Quán: ${currentDish.name} (${portionName})${
+    const details = `${currentDish.name} (${portionName})${
       toppingNames ? ` + Topping: ${toppingNames}` : ''
     }`;
 
@@ -235,7 +235,7 @@ export const EatingOutView: React.FC<EatingOutViewProps> = ({ onSaveMeal, isSavi
             value={searchQuery}
             onChangeText={setSearchQuery}
             onFocus={() => setIsSearchFocused(true)}
-            placeholder="Tìm kiếm món quán (Phở, Cơm tấm, Bún chả...)"
+            placeholder="Tìm kiếm món ăn (Phở, Cơm tấm, Bún...)"
             placeholderTextColor="#94A3B8"
             height={50}
           />
@@ -278,7 +278,7 @@ export const EatingOutView: React.FC<EatingOutViewProps> = ({ onSaveMeal, isSavi
               {dishesList.length === 0 ? (
                 <YStack padding="$4" alignItems="center">
                   <Text fontSize={13} color="#94A3B8">
-                    Không tìm thấy món "{searchQuery}" trong kho quán Việt.
+                    Không tìm thấy món "{searchQuery}".
                   </Text>
                 </YStack>
               ) : (
@@ -304,7 +304,7 @@ export const EatingOutView: React.FC<EatingOutViewProps> = ({ onSaveMeal, isSavi
                             {dish.name}
                           </Text>
                           <Text fontSize={12} color="#64748B">
-                            {dish.region} • ~{dish.standardPortion.calories} kcal
+                            ~{dish.standardPortion.calories} kcal
                           </Text>
                         </YStack>
                       </XStack>
@@ -392,36 +392,9 @@ export const EatingOutView: React.FC<EatingOutViewProps> = ({ onSaveMeal, isSavi
               </View>
 
               <YStack flex={1} gap="$1">
-                <XStack alignItems="center" gap="$2">
-                  <Text fontSize={18} fontWeight="900" color="#0F172A">
-                    {currentDish.name}
-                  </Text>
-                  <View
-                    backgroundColor="#FEF2F2"
-                    borderWidth={1}
-                    borderColor="#FECACA"
-                    paddingHorizontal="$2"
-                    paddingVertical="$0.5"
-                    borderRadius={6}
-                  >
-                    <Text fontSize={11} fontWeight="800" color="#DC2626">
-                      {currentDish.region}
-                    </Text>
-                  </View>
-                </XStack>
-
-                <Text fontSize={12.5} color="#64748B" fontWeight="500" numberOfLines={1}>
-                  {currentDish.description || 'Nước dùng hầm xương bò truyền thống, gừng nướng'}
+                <Text fontSize={18} fontWeight="900" color="#0F172A">
+                  {currentDish.name}
                 </Text>
-
-                <XStack alignItems="center" gap="$1.5" marginTop="$1">
-                  <Text fontSize={12} color="#15803D" fontWeight="800">
-                    🛡️ ✓
-                  </Text>
-                  <Text fontSize={11.5} color="#15803D" fontWeight="700">
-                    {currentDish.sourceBadge || 'Dữ liệu Viện Dinh Dưỡng & Quán gia truyền'}
-                  </Text>
-                </XStack>
               </YStack>
 
               {/* Nút yêu thích */}
@@ -452,7 +425,7 @@ export const EatingOutView: React.FC<EatingOutViewProps> = ({ onSaveMeal, isSavi
                 <XStack alignItems="center" gap="$2">
                   <Text fontSize={16}>🥣</Text>
                   <Text fontSize={14} fontWeight="800" color="#0F172A">
-                    Kích cỡ suất ăn tại quán:
+                    Kích cỡ phần ăn:
                   </Text>
                 </XStack>
                 <Text fontSize={13} fontWeight="800" color="#0055D4">
@@ -539,7 +512,7 @@ export const EatingOutView: React.FC<EatingOutViewProps> = ({ onSaveMeal, isSavi
                     <XStack alignItems="center" gap="$2">
                       <Text fontSize={16} color="#EA580C">⊕</Text>
                       <Text fontSize={14} fontWeight="800" color="#0F172A">
-                        Gọi thêm / Topping đặc trưng:
+                        Gọi thêm / Topping:
                       </Text>
                     </XStack>
                     <Text fontSize={12.5} color="#64748B" fontWeight="600">
@@ -719,7 +692,7 @@ export const EatingOutView: React.FC<EatingOutViewProps> = ({ onSaveMeal, isSavi
               <XStack justifyContent="space-between" alignItems="center">
                 <YStack gap="$1">
                   <Text fontSize={12.5} color="#475569" fontWeight="600">
-                    Tổng calo ước tính cả bữa:
+                    Tổng calo:
                   </Text>
                   <XStack alignItems="baseline" gap="$2">
                     <Text fontSize={34} fontWeight="900" color="#0055D4">
@@ -827,26 +800,8 @@ export const EatingOutView: React.FC<EatingOutViewProps> = ({ onSaveMeal, isSavi
             </YStack>
           </YStack>
 
-          {/* 3. THANH THAO TÁC DƯỚI CÙNG (BOOKMARK + LƯU BỮA ĂN NGOÀI) */}
-          <XStack gap="$3.5" alignItems="center" marginTop="$2" marginBottom="$4">
-            <TouchableOpacity activeOpacity={0.75}>
-              <View
-                width={54}
-                height={54}
-                borderRadius={27}
-                backgroundColor="#FFFFFF"
-                borderWidth={1.5}
-                borderColor="#E2E8F0"
-                alignItems="center"
-                justifyContent="center"
-                style={THEME.shadow}
-              >
-                <Text fontSize={22} color="#0F172A">
-                  🔖
-                </Text>
-              </View>
-            </TouchableOpacity>
-
+          {/* 3. NÚT LƯU BỮA ĂN */}
+          <XStack alignItems="center" marginTop="$2" marginBottom="$4">
             <TouchableOpacity
               style={{ flex: 1 }}
               activeOpacity={0.85}
@@ -866,7 +821,7 @@ export const EatingOutView: React.FC<EatingOutViewProps> = ({ onSaveMeal, isSavi
                     ⚡
                   </Text>
                   <Text color="#FFFFFF" fontSize={15.5} fontWeight="800">
-                    {isSaving ? 'Đang lưu...' : `Lưu bữa ăn ngoài (~${calculation.totalCalories} kcal)`}
+                    {isSaving ? 'Đang lưu...' : `Lưu bữa ăn (~${calculation.totalCalories} kcal)`}
                   </Text>
                 </XStack>
               </View>
