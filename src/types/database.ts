@@ -6,13 +6,21 @@
 export interface Profile {
   id: string; // UUID, Primary Key, reference auth.users
   full_name: string | null;
+  avatar_url?: string | null;
   gender: string | null; // Nam, Nữ, Khác
   age: number | null;
   height: number | null; // cm
   current_weight: number | null; // kg
   target_weight: number | null; // kg
+  activity_level?: string | null; // Ít vận động, Vận động nhẹ, Vận động vừa phải, Vận động nhiều
+  bmr?: number | null;
+  tdee?: number | null;
   goal_type: string | null; // Giảm cân, Giữ cân, Tăng cân
   daily_calorie_goal: number | null;
+  target_days?: number | null;
+  subscription_tier?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
 export interface Food {
