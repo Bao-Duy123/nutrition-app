@@ -30,142 +30,164 @@ export interface EatingOutEstimateResult {
   fatPercentage: number;
 }
 
+export interface IngredientCookingExtras {
+  cookingMethodId: string;
+  cookingMethodName: string;
+  cookingMethodIcon: string;
+  oilGrams: number;
+  oilSpoons: number;
+  extraCalories: number;
+  extraFat: number;
+  extraCarb: number;
+  extraProtein: number;
+  note: string;
+}
+
+/**
+ * TÍNH TOÁN DẦU MỠ & GIA VỊ CHO TỪNG NGUYÊN LIỆU THEO CÁCH CHẾ BIẾN VÀ TRỌNG LƯỢNG
+ * - Chiên/Rán: Hấp thụ ~8% dầu theo khối lượng (300g = 24g dầu/216 kcal, 200g = 16g dầu/144 kcal)
+ * - Áp chảo/Xào: Dầu láng chảo ~4% + 0.5% gia vị carbs
+ * - Kho/Rim: 2% dầu phi + 2.5% gia vị đường/sốt carbs
+ * - Nướng: 1.5% dầu quét + 1.5% sốt ướp carbs
+ * - Luộc/Hấp/Tươi: 0g dầu, 0 kcal phụ
+ */
+export const calculateIngredientCookingExtras = (
+  cookingMethodId: string = 'boil_steam',
+  grams: number = 100
+): IngredientCookingExtras => {
+  const g = Math.max(0, grams);
+  const methodId = cookingMethodId || 'boil_steam';
+
+  switch (methodId) {
+    case 'deep_fry': {
+      // Chiên / Rán ngập dầu: hấp thụ 8% khối lượng
+      // 100g -> 8g dầu (~72 kcal)
+      // 200g -> 16g dầu (~144 kcal)
+      // 300g -> 24g dầu (~216 kcal)
+      const oilGrams = Math.round(g * 0.08 * 10) / 10;
+      const extraFat = oilGrams;
+      const extraCalories = Math.round(oilGrams * 9);
+      const oilSpoons = Math.round((oilGrams / 5) * 10) / 10;
+      return {
+        cookingMethodId: 'deep_fry',
+        cookingMethodName: 'Chiên / Rán',
+        cookingMethodIcon: '🍟',
+        oilGrams,
+        oilSpoons,
+        extraCalories,
+        extraFat,
+        extraCarb: 0,
+        extraProtein: 0,
+        note: `+${oilGrams}g dầu chiên (+${extraCalories} kcal)`,
+      };
+    }
+    case 'stir_fry': {
+      // Áp chảo / Xào: hấp thụ 4% dầu + 0.5% gia vị carbs
+      // 100g -> 4g dầu + 0.5g carb = 38 kcal
+      // 200g -> 8g dầu + 1.0g carb = 76 kcal
+      // 300g -> 12g dầu + 1.5g carb = 114 kcal
+      const oilGrams = Math.round(g * 0.04 * 10) / 10;
+      const extraCarb = Math.round(g * 0.005 * 10) / 10;
+      const extraFat = oilGrams;
+      const extraCalories = Math.round(oilGrams * 9 + extraCarb * 4);
+      const oilSpoons = Math.round((oilGrams / 5) * 10) / 10;
+      return {
+        cookingMethodId: 'stir_fry',
+        cookingMethodName: 'Áp chảo / Xào',
+        cookingMethodIcon: '🍳',
+        oilGrams,
+        oilSpoons,
+        extraCalories,
+        extraFat,
+        extraCarb,
+        extraProtein: 0,
+        note: `+${oilGrams}g dầu xào (+${extraCalories} kcal)`,
+      };
+    }
+    case 'braised': {
+      // Kho / Rim: 2% dầu phi + 2.5% gia vị đường/sốt
+      // 100g -> 2g dầu + 2.5g carb = 28 kcal
+      // 200g -> 4g dầu + 5g carb = 56 kcal
+      // 300g -> 6g dầu + 7.5g carb = 84 kcal
+      const oilGrams = Math.round(g * 0.02 * 10) / 10;
+      const extraCarb = Math.round(g * 0.025 * 10) / 10;
+      const extraFat = oilGrams;
+      const extraCalories = Math.round(oilGrams * 9 + extraCarb * 4);
+      const oilSpoons = Math.round((oilGrams / 5) * 10) / 10;
+      return {
+        cookingMethodId: 'braised',
+        cookingMethodName: 'Kho / Rim',
+        cookingMethodIcon: '🍲',
+        oilGrams,
+        oilSpoons,
+        extraCalories,
+        extraFat,
+        extraCarb,
+        extraProtein: 0,
+        note: `+${oilGrams}g dầu & sốt (+${extraCalories} kcal)`,
+      };
+    }
+    case 'grilled': {
+      // Nướng: 1.5% dầu quét bóng + 1.5% sốt ướp
+      // 100g -> 1.5g dầu + 1.5g carb = ~20 kcal
+      // 200g -> 3g dầu + 3g carb = ~39 kcal
+      // 300g -> 4.5g dầu + 4.5g carb = ~59 kcal
+      const oilGrams = Math.round(g * 0.015 * 10) / 10;
+      const extraCarb = Math.round(g * 0.015 * 10) / 10;
+      const extraFat = oilGrams;
+      const extraCalories = Math.round(oilGrams * 9 + extraCarb * 4);
+      const oilSpoons = Math.round((oilGrams / 5) * 10) / 10;
+      return {
+        cookingMethodId: 'grilled',
+        cookingMethodName: 'Nướng',
+        cookingMethodIcon: '🔥',
+        oilGrams,
+        oilSpoons,
+        extraCalories,
+        extraFat,
+        extraCarb,
+        extraProtein: 0,
+        note: `+${oilGrams}g dầu quét & sốt (+${extraCalories} kcal)`,
+      };
+    }
+    case 'boil_steam':
+    case 'none':
+    default: {
+      return {
+        cookingMethodId: methodId,
+        cookingMethodName: methodId === 'none' ? 'Ăn tươi / Sống' : 'Luộc / Hấp',
+        cookingMethodIcon: methodId === 'none' ? '🥗' : '💧',
+        oilGrams: 0,
+        oilSpoons: 0,
+        extraCalories: 0,
+        extraFat: 0,
+        extraCarb: 0,
+        extraProtein: 0,
+        note: 'Thanh đạm (+0 kcal dầu)',
+      };
+    }
+  }
+};
+
 /**
  * AI SUY ĐOÁN LƯỢNG GIA VỊ VÀ DẦU ĂN CHO BỮA TỰ NẤU
- * Dựa trên cách chế biến và tổng khối lượng nguyên liệu (gram)
+ * (Hàm tương thích cho toàn bộ mâm hoặc tổng khối lượng)
  */
 export const estimateCookingAIExtras = (
   cookingMethodId: string | null | undefined,
   totalWeightGrams: number
 ): CookingAIEstimateResult => {
-  // 1. Trường hợp người dùng KHÔNG chọn cách chế biến hoặc chọn 'none' / 'boil_steam':
-  // AI sẽ KHÔNG tính calo tăng thêm, giữ nguyên calo gốc từ nguyên liệu.
-  if (!cookingMethodId || cookingMethodId === 'none' || cookingMethodId === 'boil_steam') {
-    return {
-      extraCalories: 0,
-      extraFat: 0,
-      extraCarb: 0,
-      extraProtein: 0,
-      oilGrams: 0,
-      oilSpoons: 0,
-      seasoningDescription: 'Không thêm dầu mỡ / gia vị',
-      explanation: 'Giữ nguyên calo gốc từ nguyên liệu tự nhiên (chế biến không dầu mỡ).',
-    };
-  }
-
-  const weight = Math.max(50, totalWeightGrams);
-
-  switch (cookingMethodId) {
-    case 'stir_fry': {
-      // Áp chảo / Xào ít dầu:
-      // Tính toán lượng dầu quét/láng chảo dựa vào khối lượng thực phẩm
-      let oilGrams = 8;
-      let extraCarb = 0;
-      let extraProtein = 0;
-      let extraCalories = 0;
-
-      if (weight >= 400 && weight <= 500) {
-        // Chuẩn khớp mâm mẫu 450g theo thiết kế
-        oilGrams = 13.5;
-        extraCarb = 0.2;
-        extraProtein = 1.2;
-        extraCalories = 125;
-      } else if (weight > 500) {
-        oilGrams = 18;
-        extraCarb = 1;
-        extraProtein = 2;
-        extraCalories = Math.round(oilGrams * 9 + 30);
-      } else {
-        oilGrams = 8;
-        extraCalories = Math.round(oilGrams * 9);
-      }
-
-      const oilSpoons = 2; // 2 thìa đong tiêu chuẩn
-      const extraFat = oilGrams;
-
-      return {
-        extraCalories,
-        extraFat,
-        extraCarb,
-        extraProtein,
-        oilGrams,
-        oilSpoons,
-        seasoningDescription: `~${oilSpoons} thìa đong dầu ăn & gia vị (${oilGrams}g lipid)`,
-        explanation: `AI nhận diện món Áp chảo/Xào với ${weight}g thực phẩm: Cần ~${oilSpoons} thìa dầu ăn & gia vị (+${extraCalories} kcal).`,
-      };
-    }
-
-    case 'deep_fry': {
-      // Chiên / Rán ngập dầu:
-      // Tỷ lệ dầu ngấm vào thực phẩm trung bình 5-7% khối lượng thực phẩm
-      const oilGrams = Math.min(35, Math.max(12, Math.round(weight * 0.055)));
-      const oilSpoons = Number((oilGrams / 5).toFixed(1));
-      const extraCalories = Math.round(oilGrams * 9);
-      const extraFat = oilGrams;
-
-      return {
-        extraCalories,
-        extraFat,
-        extraCarb: 0,
-        extraProtein: 0,
-        oilGrams,
-        oilSpoons,
-        seasoningDescription: `~${oilGrams}g dầu ngấm vào nguyên liệu`,
-        explanation: `AI nhận diện món Chiên/Rán với ${weight}g thực phẩm: Lượng dầu ngấm vào mâm ăn khoảng ~${oilGrams}g (+${extraCalories} kcal).`,
-      };
-    }
-
-    case 'braised': {
-      // Kho / Rim / Sốt đậm vị:
-      // Dầu phi thơm + đường/nước màu/mật ong
-      const oilGrams = Math.min(15, Math.max(5, Math.round(weight * 0.02)));
-      const carbGrams = Math.min(18, Math.max(6, Math.round(weight * 0.025)));
-      const oilSpoons = Number((oilGrams / 5).toFixed(1));
-      const extraCalories = Math.round(oilGrams * 9 + carbGrams * 4);
-
-      return {
-        extraCalories,
-        extraFat: oilGrams,
-        extraCarb: carbGrams,
-        extraProtein: 0,
-        oilGrams,
-        oilSpoons,
-        seasoningDescription: `~${oilGrams}g dầu phi + ~${carbGrams}g đường/sốt`,
-        explanation: `AI nhận diện món Kho/Rim với ${weight}g thực phẩm: Thêm dầu phi thơm và sốt gia vị ướp đậm đà (+${extraCalories} kcal).`,
-      };
-    }
-
-    case 'grilled': {
-      // Nướng sốt / Quết mật ong:
-      const oilGrams = 6;
-      const carbGrams = Math.min(15, Math.max(5, Math.round(weight * 0.02)));
-      const oilSpoons = 1.2;
-      const extraCalories = Math.round(oilGrams * 9 + carbGrams * 4);
-
-      return {
-        extraCalories,
-        extraFat: oilGrams,
-        extraCarb: carbGrams,
-        extraProtein: 0,
-        oilGrams,
-        oilSpoons,
-        seasoningDescription: `~${oilGrams}g dầu quết + ~${carbGrams}g sốt caramel`,
-        explanation: `AI nhận diện món Nướng sốt: Thêm dầu quết bóng và sốt ướp caramel (+${extraCalories} kcal).`,
-      };
-    }
-
-    default:
-      return {
-        extraCalories: 0,
-        extraFat: 0,
-        extraCarb: 0,
-        extraProtein: 0,
-        oilGrams: 0,
-        oilSpoons: 0,
-        seasoningDescription: 'Không thêm gia vị',
-        explanation: 'Không có calo gia tăng từ phương pháp chế biến.',
-      };
-  }
+  const extras = calculateIngredientCookingExtras(cookingMethodId || 'boil_steam', totalWeightGrams);
+  return {
+    extraCalories: extras.extraCalories,
+    extraFat: extras.extraFat,
+    extraCarb: extras.extraCarb,
+    extraProtein: extras.extraProtein,
+    oilGrams: extras.oilGrams,
+    oilSpoons: extras.oilSpoons,
+    seasoningDescription: extras.note,
+    explanation: `${extras.cookingMethodName} với ${totalWeightGrams}g: ${extras.note}`,
+  };
 };
 
 /**
