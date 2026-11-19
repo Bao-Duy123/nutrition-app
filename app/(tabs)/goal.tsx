@@ -9,7 +9,7 @@ import {
   View,
   Input,
 } from 'tamagui';
-import { TouchableOpacity, Alert, Platform } from 'react-native';
+import { TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppSelector, useAppDispatch } from '../../src/store';
 import { setProfile as setAuthProfile } from '../../src/store/slices/authSlice';
@@ -27,9 +27,19 @@ import { WeightHistory, Profile } from '../../src/types/database';
 import { useAppModal } from '../../src/components/ModalProvider';
 import {
   analyzeGoalWithAI,
-  ACTIVITY_OPTIONS,
   GoalAIAnalysis,
 } from '../../src/services/goalAIService';
+
+// Helper chuyển tên mức độ vận động thân thiện
+const getActivityLabel = (level?: string | null): string => {
+  if (!level) return 'Vận động vừa phải (mặc định)';
+  const n = level.toLowerCase();
+  if (n.includes('ít') || n.includes('sedentary')) return 'Ít vận động (Bàn giấy)';
+  if (n.includes('nhẹ') || n.includes('light')) return 'Vận động nhẹ (1-3 buổi/tuần)';
+  if (n.includes('vừa') || n.includes('moderate')) return 'Vận động vừa phải (3-5 buổi/tuần)';
+  if (n.includes('nhiều') || n.includes('active') || n.includes('cường độ')) return 'Vận động nhiều (6-7 buổi/tuần)';
+  return level;
+};
 
 export default function GoalScreen() {
   const dispatch = useAppDispatch();
@@ -37,13 +47,17 @@ export default function GoalScreen() {
   const insets = useSafeAreaInsets();
   const { userId, profile } = useAppSelector((state) => state.auth);
 
-  // Dữ liệu thể trạng cơ bản từ profile
+  // Dữ liệu thể trạng cơ bản lấy từ profile người dùng
   const [currentWeight, setCurrentWeight] = useState<number>(Number(profile?.current_weight || 65));
   const [targetWeight, setTargetWeight] = useState<number>(Number(profile?.target_weight || 60));
   const [height, setHeight] = useState<number>(Number(profile?.height || 168));
   const [age, setAge] = useState<number>(Number(profile?.age || 25));
   const [gender, setGender] = useState<string>(profile?.gender || 'Nam');
-  const [activityLevel, setActivityLevel] = useState<string>(profile?.activity_level || 'moderate');
+  
+  // Mức độ vận động: Lấy trực tiếp từ thông tin cá nhân (không chọn ở đây)
+  const activityLevel = profile?.activity_level || 'moderate';
+
+  // Số ngày hoàn thành mục tiêu: Cho người dùng tự nhập
   const [targetDays, setTargetDays] = useState<number>(Number(profile?.target_days || 60));
 
   // Trạng thái giao diện
@@ -52,7 +66,6 @@ export default function GoalScreen() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSavingGoal, setIsSavingGoal] = useState<boolean>(false);
   const [isSavingWeight, setIsSavingWeight] = useState<boolean>(false);
-  const [showEditBaseline, setShowEditBaseline] = useState<boolean>(false);
 
   // Đồng bộ state khi profile trong Redux thay đổi
   useEffect(() => {
@@ -62,7 +75,6 @@ export default function GoalScreen() {
       if (profile.height) setHeight(Number(profile.height));
       if (profile.age) setAge(Number(profile.age));
       if (profile.gender) setGender(profile.gender);
-      if (profile.activity_level) setActivityLevel(profile.activity_level);
       if (profile.target_days) setTargetDays(Number(profile.target_days));
     }
   }, [profile]);
@@ -100,7 +112,7 @@ export default function GoalScreen() {
     fetchData();
   }, [fetchData]);
 
-  // PHÂN TÍCH THÔNG MINH BẰNG HUẤN LUYỆN VIÊN AI (REAL-TIME REACTIVE)
+  // PHÂN TÍCH THÔNG MINH BẰNG HUẤN LUYỆN VIÊN AI
   const aiAnalysis: GoalAIAnalysis = useMemo(() => {
     return analyzeGoalWithAI({
       currentWeight,
@@ -109,25 +121,29 @@ export default function GoalScreen() {
       age,
       gender,
       activityLevel,
-      targetDays,
+      targetDays: Math.max(1, targetDays),
     });
   }, [currentWeight, targetWeight, height, age, gender, activityLevel, targetDays]);
 
-  // Xử lý áp dụng mục tiêu mới vào toàn bộ hệ thống
+  // Áp dụng mục tiêu mới vào toàn bộ hệ thống
   const handleApplyGoal = async () => {
+    if (targetDays <= 0) {
+      await modal.alert({
+        title: 'Thời gian chưa hợp lệ',
+        message: 'Vui lòng nhập số ngày hoàn thành mục tiêu lớn hơn 0.',
+        type: 'warning',
+      });
+      return;
+    }
+
     setIsSavingGoal(true);
     const updates: Partial<Profile> = {
       target_weight: targetWeight,
       target_days: targetDays,
-      activity_level: activityLevel,
       goal_type: aiAnalysis.goalType,
       daily_calorie_goal: aiAnalysis.dailyCalorieTarget,
       bmr: aiAnalysis.bmr,
       tdee: aiAnalysis.tdee,
-      height,
-      age,
-      gender,
-      current_weight: currentWeight,
     };
 
     try {
@@ -152,7 +168,7 @@ export default function GoalScreen() {
 
       await modal.alert({
         title: 'Áp dụng mục tiêu thành công! 🎯',
-        message: `Đã cập nhật mục tiêu ${aiAnalysis.goalType} (~${aiAnalysis.dailyCalorieTarget} kcal/ngày). Toàn bộ Trang chủ và Nhật ký dinh dưỡng đã được đồng bộ!`,
+        message: `Đã lưu mục tiêu ${aiAnalysis.goalType} (~${aiAnalysis.dailyCalorieTarget} kcal/ngày). Toàn bộ Trang chủ và Nhật ký dinh dưỡng đã được đồng bộ!`,
         type: 'success',
         confirmText: 'Tuyệt vời',
       });
@@ -204,7 +220,6 @@ export default function GoalScreen() {
       dispatch(setAuthProfile(updated));
       dispatch(setStoreProfile(updated));
 
-      // Thêm vào danh sách tạm trên giao diện
       const newRecord: WeightHistory = {
         id: Date.now(),
         user_id: userId || 'local',
@@ -240,289 +255,130 @@ export default function GoalScreen() {
     <ScrollView
       backgroundColor={THEME.colors.background}
       contentContainerStyle={{
-        paddingTop: Math.max(insets.top, 16),
-        paddingBottom: Math.max(insets.bottom + 80, 100),
+        paddingTop: Math.max(insets.top, 14),
+        paddingBottom: Math.max(insets.bottom + 70, 90),
       }}
       showsVerticalScrollIndicator={false}
     >
-      <YStack paddingHorizontal="$4" gap="$4">
+      <YStack paddingHorizontal="$3.5" gap="$3">
         {/* ========================================================================= */}
-        {/* HEADER TRANG */}
+        {/* HEADER GỌN GÀNG, KHÔNG THỪA KHOẢNG TRẮNG */}
         {/* ========================================================================= */}
-        <XStack justifyContent="space-between" alignItems="center">
-          <YStack gap="$1">
-            <XStack alignItems="center" gap="$2">
-              <Text fontSize={22} fontWeight="900" color="#0F172A">
-                Mục Tiêu & AI Coach
-              </Text>
-              <Text fontSize={22}>🎯</Text>
-            </XStack>
-            <Text fontSize={13} color="#64748B" fontWeight="500">
-              Phân tích thể trạng, dự báo khả thi & kế hoạch calo cá nhân hóa
+        <YStack gap="$0.5">
+          <XStack alignItems="center" gap="$1.5">
+            <Text fontSize={20} fontWeight="900" color="#0F172A">
+              Mục Tiêu & AI Coach
             </Text>
-          </YStack>
-        </XStack>
+            <Text fontSize={20}>🎯</Text>
+          </XStack>
+          <Text fontSize={12} color="#64748B" fontWeight="500">
+            Kế hoạch calo & phân tích tính khả thi cá nhân hóa
+          </Text>
+        </YStack>
 
         {/* ========================================================================= */}
-        {/* 1. THẺ THỂ TRẠNG HIỆN TẠI & CHỈ SỐ CHUYỂN HÓA CỦA BẠN */}
+        {/* 1. THẺ THỂ TRẠNG HIỆN TẠI (TỪ HỒ SƠ CÁ NHÂN) */}
         {/* ========================================================================= */}
         <YStack
           backgroundColor="#FFFFFF"
-          borderRadius={24}
-          padding="$4"
+          borderRadius={20}
+          padding="$3.5"
           borderWidth={1}
           borderColor="#E2E8F0"
-          gap="$3.5"
+          gap="$2.5"
           style={THEME.shadow}
         >
           <XStack justifyContent="space-between" alignItems="center">
-            <XStack alignItems="center" gap="$2.5">
-              <View
-                width={36}
-                height={36}
-                borderRadius={18}
-                backgroundColor="#EFF6FF"
-                alignItems="center"
-                justifyContent="center"
-              >
-                <Text fontSize={18}>👤</Text>
-              </View>
-              <YStack>
-                <Text fontSize={15.5} fontWeight="800" color="#0F172A">
-                  Thể trạng hiện tại
-                </Text>
-                <Text fontSize={12} color="#64748B">
-                  Chỉ số sức khỏe & tốc độ chuyển hóa
-                </Text>
-              </YStack>
+            <XStack alignItems="center" gap="$2">
+              <Text fontSize={15}>👤</Text>
+              <Text fontSize={14.5} fontWeight="800" color="#0F172A">
+                Thể trạng của bạn
+              </Text>
             </XStack>
 
-            <TouchableOpacity
-              onPress={() => setShowEditBaseline(!showEditBaseline)}
-              activeOpacity={0.7}
+            <View
+              backgroundColor="#EFF6FF"
+              paddingHorizontal="$2.5"
+              paddingVertical="$0.5"
+              borderRadius={12}
             >
-              <View
-                backgroundColor={showEditBaseline ? '#E2E8F0' : '#F1F5F9'}
-                paddingHorizontal="$3"
-                paddingVertical="$1"
-                borderRadius={14}
-              >
-                <Text fontSize={12} fontWeight="700" color="#0055D4">
-                  {showEditBaseline ? 'Đóng ✕' : 'Chỉnh thể trạng ✎'}
-                </Text>
-              </View>
-            </TouchableOpacity>
+              <Text fontSize={11} fontWeight="800" color="#2563EB">
+                BMI: {aiAnalysis.currentBMI} ({aiAnalysis.bmiCategory.label})
+              </Text>
+            </View>
           </XStack>
 
-          {/* Form chỉnh sửa thể trạng cơ bản khi bấm mở */}
-          {showEditBaseline && (
-            <YStack
-              backgroundColor="#F8FAFC"
-              padding="$3.5"
-              borderRadius={18}
-              borderWidth={1}
-              borderColor="#E2E8F0"
-              gap="$3"
-            >
-              <Text fontSize={13} fontWeight="700" color="#475569">
-                Cập nhật thông tin thể trạng:
-              </Text>
-              <XStack gap="$3">
-                <YStack flex={1} gap="$1">
-                  <Text fontSize={12} color="#64748B" fontWeight="600">
-                    Cân nặng (kg)
-                  </Text>
-                  <Input
-                    backgroundColor="#FFFFFF"
-                    height={42}
-                    borderRadius={12}
-                    borderWidth={1}
-                    borderColor="#CBD5E1"
-                    fontSize={14}
-                    fontWeight="700"
-                    keyboardType="numeric"
-                    value={String(currentWeight)}
-                    onChangeText={(t) => setCurrentWeight(Number(t) || currentWeight)}
-                  />
-                </YStack>
-
-                <YStack flex={1} gap="$1">
-                  <Text fontSize={12} color="#64748B" fontWeight="600">
-                    Chiều cao (cm)
-                  </Text>
-                  <Input
-                    backgroundColor="#FFFFFF"
-                    height={42}
-                    borderRadius={12}
-                    borderWidth={1}
-                    borderColor="#CBD5E1"
-                    fontSize={14}
-                    fontWeight="700"
-                    keyboardType="numeric"
-                    value={String(height)}
-                    onChangeText={(t) => setHeight(Number(t) || height)}
-                  />
-                </YStack>
-
-                <YStack flex={1} gap="$1">
-                  <Text fontSize={12} color="#64748B" fontWeight="600">
-                    Tuổi
-                  </Text>
-                  <Input
-                    backgroundColor="#FFFFFF"
-                    height={42}
-                    borderRadius={12}
-                    borderWidth={1}
-                    borderColor="#CBD5E1"
-                    fontSize={14}
-                    fontWeight="700"
-                    keyboardType="numeric"
-                    value={String(age)}
-                    onChangeText={(t) => setAge(Number(t) || age)}
-                  />
-                </YStack>
-              </XStack>
-
-              <XStack gap="$2" alignItems="center">
-                <Text fontSize={12} color="#64748B" fontWeight="600">
-                  Giới tính:
-                </Text>
-                {['Nam', 'Nữ'].map((g) => (
-                  <TouchableOpacity
-                    key={g}
-                    onPress={() => setGender(g)}
-                    activeOpacity={0.7}
-                  >
-                    <View
-                      backgroundColor={gender === g ? '#0055D4' : '#FFFFFF'}
-                      borderWidth={1}
-                      borderColor={gender === g ? '#0055D4' : '#CBD5E1'}
-                      paddingHorizontal="$3.5"
-                      paddingVertical="$1"
-                      borderRadius={14}
-                    >
-                      <Text
-                        fontSize={12}
-                        fontWeight="700"
-                        color={gender === g ? '#FFFFFF' : '#475569'}
-                      >
-                        {g}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                ))}
-              </XStack>
-            </YStack>
-          )}
-
-          {/* 3 Thẻ thống kê chỉ số thể trạng */}
-          <XStack gap="$2.5">
-            <YStack
+          {/* Dòng tóm tắt thông số cá nhân */}
+          <XStack gap="$2" flexWrap="wrap">
+            <View
               flex={1}
+              minWidth={100}
               backgroundColor="#F8FAFC"
-              padding="$3"
-              borderRadius={18}
+              paddingVertical="$2"
+              paddingHorizontal="$2.5"
+              borderRadius={14}
               borderWidth={1}
               borderColor="#E2E8F0"
-              alignItems="center"
-              gap="$1"
             >
-              <Text fontSize={11} fontWeight="700" color="#64748B">
-                CÂN NẶNG HIỆN TẠI
+              <Text fontSize={10.5} fontWeight="700" color="#64748B">CÂN NẶNG</Text>
+              <Text fontSize={16} fontWeight="900" color="#0F172A">
+                {currentWeight} <Text fontSize={11} fontWeight="600">kg</Text>
               </Text>
-              <Text fontSize={20} fontWeight="900" color="#0F172A">
-                {currentWeight} <Text fontSize={12} fontWeight="600">kg</Text>
-              </Text>
-              <Text fontSize={11} fontWeight="600" color="#64748B">
-                Cao {height}cm
-              </Text>
-            </YStack>
+              <Text fontSize={10} color="#64748B">Cao {height}cm • {age}t</Text>
+            </View>
 
-            <YStack
+            <View
               flex={1}
+              minWidth={100}
               backgroundColor="#F8FAFC"
-              padding="$3"
-              borderRadius={18}
+              paddingVertical="$2"
+              paddingHorizontal="$2.5"
+              borderRadius={14}
               borderWidth={1}
               borderColor="#E2E8F0"
-              alignItems="center"
-              gap="$1"
             >
-              <Text fontSize={11} fontWeight="700" color="#64748B">
-                CHỈ SỐ BMI
+              <Text fontSize={10.5} fontWeight="700" color="#64748B">TIÊU HAO (TDEE)</Text>
+              <Text fontSize={16} fontWeight="900" color="#0055D4">
+                {aiAnalysis.tdee} <Text fontSize={11} fontWeight="600">kcal</Text>
               </Text>
-              <Text fontSize={20} fontWeight="900" color={aiAnalysis.bmiCategory.color}>
-                {aiAnalysis.currentBMI}
-              </Text>
-              <View
-                backgroundColor="#FFFFFF"
-                paddingHorizontal="$2"
-                paddingVertical="$0.5"
-                borderRadius={10}
-                borderWidth={1}
-                borderColor="#E2E8F0"
-              >
-                <Text fontSize={10} fontWeight="700" color={aiAnalysis.bmiCategory.color}>
-                  {aiAnalysis.bmiCategory.label}
-                </Text>
-              </View>
-            </YStack>
+              <Text fontSize={10} color="#64748B">BMR: {aiAnalysis.bmr} kcal</Text>
+            </View>
+          </XStack>
 
-            <YStack
-              flex={1}
-              backgroundColor="#F8FAFC"
-              padding="$3"
-              borderRadius={18}
-              borderWidth={1}
-              borderColor="#E2E8F0"
-              alignItems="center"
-              gap="$1"
-            >
-              <Text fontSize={11} fontWeight="700" color="#64748B">
-                TIÊU HAO TDEE
-              </Text>
-              <Text fontSize={20} fontWeight="900" color="#0055D4">
-                {aiAnalysis.tdee}
-              </Text>
-              <Text fontSize={11} fontWeight="600" color="#64748B">
-                BMR: {aiAnalysis.bmr} kcal
-              </Text>
-            </YStack>
+          {/* Mức độ vận động lấy từ thông tin cá nhân */}
+          <XStack
+            backgroundColor="#F1F5F9"
+            paddingVertical="$1.5"
+            paddingHorizontal="$2.5"
+            borderRadius={12}
+            alignItems="center"
+            gap="$1.5"
+          >
+            <Text fontSize={13}>🏃</Text>
+            <Text fontSize={11.5} color="#475569" fontWeight="600" flexShrink={1}>
+              Vận động (theo hồ sơ): <Text fontWeight="800" color="#0F172A">{getActivityLabel(activityLevel)}</Text>
+            </Text>
           </XStack>
         </YStack>
 
         {/* ========================================================================= */}
-        {/* 2. THIẾT LẬP MỤC TIÊU CÂN NẶNG & THỜI GIAN THỰC HIỆN */}
+        {/* 2. THIẾT LẬP MỤC TIÊU: CÂN NẶNG ĐÍCH & SỐ NGÀY TỰ NHẬP */}
         {/* ========================================================================= */}
         <YStack
           backgroundColor="#FFFFFF"
-          borderRadius={24}
-          padding="$4"
+          borderRadius={20}
+          padding="$3.5"
           borderWidth={1}
           borderColor="#E2E8F0"
-          gap="$4"
+          gap="$3"
           style={THEME.shadow}
         >
           <XStack justifyContent="space-between" alignItems="center">
-            <XStack alignItems="center" gap="$2.5">
-              <View
-                width={36}
-                height={36}
-                borderRadius={18}
-                backgroundColor="#FEF3C7"
-                alignItems="center"
-                justifyContent="center"
-              >
-                <Text fontSize={18}>🎯</Text>
-              </View>
-              <YStack>
-                <Text fontSize={15.5} fontWeight="800" color="#0F172A">
-                  Kế hoạch mong muốn
-                </Text>
-                <Text fontSize={12} color="#64748B">
-                  Chọn cân nặng đích và thời gian hoàn thành
-                </Text>
-              </YStack>
+            <XStack alignItems="center" gap="$2">
+              <Text fontSize={15}>🎯</Text>
+              <Text fontSize={14.5} fontWeight="800" color="#0F172A">
+                Mục tiêu mong muốn
+              </Text>
             </XStack>
 
             <View
@@ -533,12 +389,12 @@ export default function GoalScreen() {
                   ? '#FEF3C7'
                   : '#DCFCE7'
               }
-              paddingHorizontal="$3"
+              paddingHorizontal="$2.5"
               paddingVertical="$1"
-              borderRadius={14}
+              borderRadius={12}
             >
               <Text
-                fontSize={12}
+                fontSize={11.5}
                 fontWeight="800"
                 color={
                   aiAnalysis.goalType === 'Giảm cân'
@@ -553,322 +409,252 @@ export default function GoalScreen() {
             </View>
           </XStack>
 
-          {/* 2.1 Chọn Cân Nặng Mục Tiêu */}
-          <YStack gap="$2.5">
+          {/* 2.1 Cân Nặng Mục Tiêu */}
+          <YStack gap="$1.5">
             <XStack justifyContent="space-between" alignItems="center">
-              <Text fontSize={13.5} fontWeight="700" color="#334155">
+              <Text fontSize={12.5} fontWeight="700" color="#334155">
                 Cân nặng mục tiêu (kg):
               </Text>
-              <Text fontSize={12.5} color="#64748B">
-                BMI đích: <Text fontWeight="700" color="#0F172A">{aiAnalysis.targetBMI}</Text> ({aiAnalysis.bmiCategory.targetLabel})
+              <Text fontSize={11.5} color="#64748B">
+                BMI đích: <Text fontWeight="700" color="#0F172A">{aiAnalysis.targetBMI}</Text>
               </Text>
             </XStack>
 
             <XStack alignItems="center" gap="$2">
-              <XStack
-                flex={1}
-                alignItems="center"
-                justifyContent="space-between"
-                backgroundColor="#F8FAFC"
-                borderRadius={20}
-                borderWidth={1.5}
-                borderColor="#E2E8F0"
-                paddingHorizontal="$3"
-                height={48}
+              <TouchableOpacity
+                onPress={() => setTargetWeight((prev) => Math.max(30, Math.round((prev - 0.5) * 10) / 10))}
+                activeOpacity={0.6}
               >
-                <TouchableOpacity
-                  onPress={() => setTargetWeight((prev) => Math.max(30, Math.round((prev - 0.5) * 10) / 10))}
-                  activeOpacity={0.6}
+                <View
+                  width={42}
+                  height={42}
+                  borderRadius={12}
+                  backgroundColor="#F1F5F9"
+                  alignItems="center"
+                  justifyContent="center"
+                  borderWidth={1}
+                  borderColor="#E2E8F0"
                 >
-                  <Text fontSize={22} fontWeight="800" color="#64748B" paddingHorizontal="$2">
+                  <Text fontSize={20} fontWeight="800" color="#475569">
                     -
                   </Text>
-                </TouchableOpacity>
+                </View>
+              </TouchableOpacity>
 
-                <XStack alignItems="baseline" gap="$1">
-                  <Text fontSize={20} fontWeight="900" color="#0F172A">
-                    {targetWeight}
-                  </Text>
-                  <Text fontSize={13} fontWeight="700" color="#64748B">
-                    kg
-                  </Text>
-                </XStack>
+              <Input
+                flex={1}
+                height={42}
+                borderRadius={12}
+                borderWidth={1.5}
+                borderColor="#E2E8F0"
+                backgroundColor="#F8FAFC"
+                fontSize={16}
+                fontWeight="800"
+                color="#0F172A"
+                textAlign="center"
+                keyboardType="numeric"
+                value={String(targetWeight)}
+                onChangeText={(t) => {
+                  const val = parseFloat(t);
+                  setTargetWeight(isNaN(val) ? 0 : val);
+                }}
+              />
 
-                <TouchableOpacity
-                  onPress={() => setTargetWeight((prev) => Math.min(200, Math.round((prev + 0.5) * 10) / 10))}
-                  activeOpacity={0.6}
+              <TouchableOpacity
+                onPress={() => setTargetWeight((prev) => Math.min(250, Math.round((prev + 0.5) * 10) / 10))}
+                activeOpacity={0.6}
+              >
+                <View
+                  width={42}
+                  height={42}
+                  borderRadius={12}
+                  backgroundColor="#F1F5F9"
+                  alignItems="center"
+                  justifyContent="center"
+                  borderWidth={1}
+                  borderColor="#E2E8F0"
                 >
-                  <Text fontSize={22} fontWeight="800" color="#64748B" paddingHorizontal="$2">
+                  <Text fontSize={20} fontWeight="800" color="#475569">
                     +
                   </Text>
-                </TouchableOpacity>
-              </XStack>
-
-              {/* Nút chỉnh nhanh */}
-              {[-2, -1, +1, +2].map((delta) => (
-                <TouchableOpacity
-                  key={delta}
-                  onPress={() => setTargetWeight((prev) => Math.max(30, prev + delta))}
-                  activeOpacity={0.7}
-                >
-                  <View
-                    backgroundColor="#F1F5F9"
-                    borderRadius={18}
-                    paddingHorizontal="$2.5"
-                    paddingVertical="$2"
-                    borderWidth={1}
-                    borderColor="#E2E8F0"
-                  >
-                    <Text fontSize={12} fontWeight="800" color="#0055D4">
-                      {delta > 0 ? `+${delta}k` : `${delta}k`}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              ))}
+                </View>
+              </TouchableOpacity>
             </XStack>
           </YStack>
 
-          {/* 2.2 Chọn Thời Gian Hoàn Thành (Timeline) */}
-          <YStack gap="$2.5">
+          {/* 2.2 Số Ngày Hoàn Thành Mục Tiêu (Người Dùng Tự Nhập Trực Tiếp) */}
+          <YStack gap="$1.5">
             <XStack justifyContent="space-between" alignItems="center">
-              <Text fontSize={13.5} fontWeight="700" color="#334155">
-                Thời gian dự kiến hoàn thành:
+              <Text fontSize={12.5} fontWeight="700" color="#334155">
+                Số ngày thực hiện (tự nhập):
               </Text>
-              <Text fontSize={12.5} color="#0055D4" fontWeight="700">
-                {targetDays} ngày (~{aiAnalysis.weeks} tuần)
+              <Text fontSize={11.5} color="#0055D4" fontWeight="700">
+                ~{aiAnalysis.weeks} tuần (khoảng {(targetDays / 30).toFixed(1)} tháng)
               </Text>
             </XStack>
 
-            <XStack gap="$2" flexWrap="wrap">
-              {[
-                { days: 30, label: '30 ngày (~1 tháng)' },
-                { days: 60, label: '60 ngày (~2 tháng)' },
-                { days: 90, label: '90 ngày (~3 tháng)' },
-                { days: 180, label: '180 ngày (~6 tháng)' },
-              ].map((item) => {
-                const isSelected = targetDays === item.days;
-                return (
-                  <TouchableOpacity
-                    key={item.days}
-                    onPress={() => setTargetDays(item.days)}
-                    activeOpacity={0.7}
-                    style={{ flex: 1, minWidth: '45%' }}
-                  >
-                    <View
-                      backgroundColor={isSelected ? '#0055D4' : '#F8FAFC'}
-                      borderWidth={1.5}
-                      borderColor={isSelected ? '#0055D4' : '#E2E8F0'}
-                      borderRadius={16}
-                      paddingVertical="$2.5"
-                      alignItems="center"
-                    >
-                      <Text
-                        fontSize={12.5}
-                        fontWeight="800"
-                        color={isSelected ? '#FFFFFF' : '#334155'}
-                      >
-                        {item.label}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
+            <XStack alignItems="center" gap="$2">
+              <TouchableOpacity
+                onPress={() => setTargetDays((prev) => Math.max(5, prev - 5))}
+                activeOpacity={0.6}
+              >
+                <View
+                  width={42}
+                  height={42}
+                  borderRadius={12}
+                  backgroundColor="#F1F5F9"
+                  alignItems="center"
+                  justifyContent="center"
+                  borderWidth={1}
+                  borderColor="#E2E8F0"
+                >
+                  <Text fontSize={13} fontWeight="800" color="#475569">
+                    -5d
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+              <Input
+                flex={1}
+                height={42}
+                borderRadius={12}
+                borderWidth={1.5}
+                borderColor="#E2E8F0"
+                backgroundColor="#F8FAFC"
+                fontSize={16}
+                fontWeight="800"
+                color="#0F172A"
+                textAlign="center"
+                keyboardType="numeric"
+                placeholder="Nhập số ngày"
+                value={targetDays > 0 ? String(targetDays) : ''}
+                onChangeText={(t) => {
+                  const val = parseInt(t, 10);
+                  setTargetDays(isNaN(val) ? 0 : val);
+                }}
+              />
+
+              <TouchableOpacity
+                onPress={() => setTargetDays((prev) => prev + 5)}
+                activeOpacity={0.6}
+              >
+                <View
+                  width={42}
+                  height={42}
+                  borderRadius={12}
+                  backgroundColor="#F1F5F9"
+                  alignItems="center"
+                  justifyContent="center"
+                  borderWidth={1}
+                  borderColor="#E2E8F0"
+                >
+                  <Text fontSize={13} fontWeight="800" color="#475569">
+                    +5d
+                  </Text>
+                </View>
+              </TouchableOpacity>
             </XStack>
-          </YStack>
-
-          {/* 2.3 Chọn Mức Độ Vận Động / Tập Luyện */}
-          <YStack gap="$2.5">
-            <Text fontSize={13.5} fontWeight="700" color="#334155">
-              Mức độ tập luyện & vận động:
-            </Text>
-
-            <YStack gap="$2">
-              {ACTIVITY_OPTIONS.map((item) => {
-                const isSelected =
-                  activityLevel === item.key ||
-                  activityLevel?.toLowerCase().includes(item.label.toLowerCase().slice(0, 4));
-
-                return (
-                  <TouchableOpacity
-                    key={item.key}
-                    onPress={() => setActivityLevel(item.key)}
-                    activeOpacity={0.7}
-                  >
-                    <XStack
-                      backgroundColor={isSelected ? '#EFF6FF' : '#F8FAFC'}
-                      borderWidth={1.5}
-                      borderColor={isSelected ? '#0055D4' : '#E2E8F0'}
-                      borderRadius={18}
-                      padding="$3"
-                      alignItems="center"
-                      justifyContent="space-between"
-                    >
-                      <XStack alignItems="center" gap="$3" flex={1}>
-                        <Text fontSize={24}>{item.icon}</Text>
-                        <YStack flex={1}>
-                          <Text
-                            fontSize={13.5}
-                            fontWeight="800"
-                            color={isSelected ? '#0055D4' : '#0F172A'}
-                          >
-                            {item.label}
-                          </Text>
-                          <Text fontSize={11.5} color="#64748B">
-                            {item.sublabel}
-                          </Text>
-                        </YStack>
-                      </XStack>
-
-                      <View
-                        width={20}
-                        height={20}
-                        borderRadius={10}
-                        borderWidth={2}
-                        borderColor={isSelected ? '#0055D4' : '#CBD5E1'}
-                        alignItems="center"
-                        justifyContent="center"
-                      >
-                        {isSelected && (
-                          <View
-                            width={10}
-                            height={10}
-                            borderRadius={5}
-                            backgroundColor="#0055D4"
-                          />
-                        )}
-                      </View>
-                    </XStack>
-                  </TouchableOpacity>
-                );
-              })}
-            </YStack>
           </YStack>
         </YStack>
 
         {/* ========================================================================= */}
-        {/* 3. THẺ PHÂN TÍCH KHẢ THI TỪ HUẤN LUYỆN VIÊN AI (AI COACH ASSESSMENT) */}
+        {/* 3. THẺ PHÂN TÍCH KHẢ THI & KẾ HOẠCH DINH DƯỠNG TỪ AI COACH */}
         {/* ========================================================================= */}
         <YStack
           backgroundColor="#FFFFFF"
-          borderRadius={24}
-          padding="$4"
+          borderRadius={20}
+          padding="$3.5"
           borderWidth={1.5}
           borderColor={aiAnalysis.badgeColor}
-          gap="$4"
+          gap="$3"
           style={THEME.shadow}
         >
-          {/* Header AI Badge */}
+          {/* Header AI & Đánh giá mức độ */}
           <XStack justifyContent="space-between" alignItems="center">
-            <XStack alignItems="center" gap="$2.5">
-              <View
-                width={38}
-                height={38}
-                borderRadius={19}
-                backgroundColor={
-                  aiAnalysis.feasibilityLevel === 'hazardous'
-                    ? '#FEE2E2'
-                    : aiAnalysis.feasibilityLevel === 'challenging'
-                    ? '#FEF3C7'
-                    : '#DCFCE7'
-                }
-                alignItems="center"
-                justifyContent="center"
-              >
-                <Text fontSize={20}>
-                  {aiAnalysis.feasibilityLevel === 'hazardous'
-                    ? '⚠️'
-                    : aiAnalysis.feasibilityLevel === 'challenging'
-                    ? '⚡'
-                    : '🤖'}
-                </Text>
-              </View>
-              <YStack>
-                <Text fontSize={15.5} fontWeight="900" color="#0F172A">
-                  Đánh giá khả thi từ AI
-                </Text>
-                <Text fontSize={12} color="#64748B">
-                  Phân tích y khoa & thích ứng chuyển hóa
-                </Text>
-              </YStack>
+            <XStack alignItems="center" gap="$2">
+              <Text fontSize={17}>
+                {aiAnalysis.feasibilityLevel === 'hazardous'
+                  ? '⚠️'
+                  : aiAnalysis.feasibilityLevel === 'challenging'
+                  ? '⚡'
+                  : '🤖'}
+              </Text>
+              <Text fontSize={14.5} fontWeight="900" color="#0F172A">
+                Đánh giá AI
+              </Text>
             </XStack>
 
             <View
               backgroundColor={aiAnalysis.badgeColor}
-              paddingHorizontal="$3"
+              paddingHorizontal="$2.5"
               paddingVertical="$1"
-              borderRadius={14}
+              borderRadius={12}
             >
-              <Text fontSize={12} fontWeight="800" color="#FFFFFF">
+              <Text fontSize={11} fontWeight="800" color="#FFFFFF">
                 {aiAnalysis.difficultyTitle}
               </Text>
             </View>
           </XStack>
 
-          {/* Thanh đo Điểm khả thi (Feasibility Meter) */}
-          <YStack gap="$1.5">
+          {/* Điểm khả thi & Tốc độ thay đổi */}
+          <YStack gap="$1">
             <XStack justifyContent="space-between" alignItems="center">
-              <Text fontSize={12.5} fontWeight="700" color="#475569">
-                Điểm khả thi thực hiện:
+              <Text fontSize={12} fontWeight="700" color="#475569">
+                Điểm khả thi: <Text fontWeight="900" color={aiAnalysis.badgeColor}>{aiAnalysis.feasibilityScore}%</Text>
               </Text>
-              <Text fontSize={13.5} fontWeight="900" color={aiAnalysis.badgeColor}>
-                {aiAnalysis.feasibilityScore}/100% • Tốc độ: ~{aiAnalysis.ratePerWeek} kg/tuần
+              <Text fontSize={12} fontWeight="700" color="#475569">
+                Tốc độ: ~{aiAnalysis.ratePerWeek} kg/tuần
               </Text>
             </XStack>
-            <View height={8} backgroundColor="#E2E8F0" borderRadius={4} overflow="hidden">
+            <View height={6} backgroundColor="#E2E8F0" borderRadius={3} overflow="hidden">
               <View
                 width={`${aiAnalysis.feasibilityScore}%`}
                 height="100%"
                 backgroundColor={aiAnalysis.badgeColor}
-                borderRadius={4}
+                borderRadius={3}
               />
             </View>
           </YStack>
 
-          {/* Hộp chi tiết nhận định AI */}
+          {/* Chi tiết nhận định từ AI */}
           <YStack
             backgroundColor="#F8FAFC"
-            padding="$3.5"
-            borderRadius={18}
+            padding="$2.5"
+            borderRadius={14}
             borderWidth={1}
             borderColor="#E2E8F0"
-            gap="$2.5"
+            gap="$2"
           >
-            <Text fontSize={13.5} color="#0F172A" lineHeight={20} fontWeight="600">
+            <Text fontSize={12.5} color="#0F172A" lineHeight={18} fontWeight="500">
               {aiAnalysis.detailedAnalysis}
             </Text>
 
-            {/* Cảnh báo an toàn nếu calo quá thấp hoặc thời gian quá gấp */}
+            {/* Gợi ý điều chỉnh nếu quá gấp */}
             {aiAnalysis.suggestedTargetDaysMin && (
               <XStack
                 backgroundColor="#FFF1F2"
-                padding="$3"
-                borderRadius={14}
+                padding="$2"
+                borderRadius={10}
                 borderWidth={1}
                 borderColor="#FECDD3"
                 alignItems="center"
                 justifyContent="space-between"
-                gap="$2"
+                gap="$1.5"
               >
-                <YStack flex={1}>
-                  <Text fontSize={12} fontWeight="800" color="#BE123C">
-                    💡 Khuyến nghị tối ưu từ AI:
-                  </Text>
-                  <Text fontSize={11.5} color="#9F1239">
-                    Nên đặt mốc ít nhất {aiAnalysis.suggestedTargetDaysMin} ngày (~
-                    {Math.round(aiAnalysis.suggestedTargetDaysMin / 7)} tuần) để bảo vệ sức khỏe.
-                  </Text>
-                </YStack>
+                <Text fontSize={11} color="#9F1239" fontWeight="600" flex={1}>
+                  💡 Khuyên đặt tối thiểu {aiAnalysis.suggestedTargetDaysMin} ngày để an toàn.
+                </Text>
                 <TouchableOpacity
                   onPress={() => setTargetDays(aiAnalysis.suggestedTargetDaysMin || 90)}
                   activeOpacity={0.7}
                 >
                   <View
                     backgroundColor="#BE123C"
-                    paddingHorizontal="$3"
-                    paddingVertical="$1.5"
-                    borderRadius={12}
+                    paddingHorizontal="$2.5"
+                    paddingVertical="$1"
+                    borderRadius={8}
                   >
-                    <Text fontSize={11.5} fontWeight="800" color="#FFFFFF">
+                    <Text fontSize={10.5} fontWeight="800" color="#FFFFFF">
                       Áp dụng
                     </Text>
                   </View>
@@ -877,36 +663,36 @@ export default function GoalScreen() {
             )}
           </YStack>
 
-          {/* LƯỢNG CALO ĐỀ XUẤT HÀNG NGÀY */}
+          {/* Khối Lượng Calo Đề Xuất Mỗi Ngày */}
           <YStack
             backgroundColor="#EEF4FF"
-            padding="$4"
-            borderRadius={20}
+            padding="$3"
+            borderRadius={16}
             borderWidth={1}
             borderColor="#DBEAFE"
-            gap="$3"
+            gap="$2.5"
           >
             <XStack justifyContent="space-between" alignItems="center">
-              <YStack gap="$0.5">
-                <Text fontSize={12} fontWeight="700" color="#475569">
-                  MỤC TIÊU NẠP MỖI NGÀY:
+              <YStack>
+                <Text fontSize={11} fontWeight="700" color="#475569">
+                  MỤC TIÊU ĂN HÀNG NGÀY:
                 </Text>
-                <XStack alignItems="baseline" gap="$1.5">
-                  <Text fontSize={32} fontWeight="900" color="#0055D4">
+                <XStack alignItems="baseline" gap="$1">
+                  <Text fontSize={26} fontWeight="900" color="#0055D4">
                     {aiAnalysis.dailyCalorieTarget}
                   </Text>
-                  <Text fontSize={15} fontWeight="800" color="#0055D4">
+                  <Text fontSize={13} fontWeight="800" color="#0055D4">
                     kcal / ngày
                   </Text>
                 </XStack>
               </YStack>
 
-              <YStack alignItems="flex-end" gap="$0.5">
-                <Text fontSize={11.5} color="#64748B">
+              <YStack alignItems="flex-end">
+                <Text fontSize={10.5} color="#64748B">
                   Tiêu hao: {aiAnalysis.tdee} kcal
                 </Text>
                 <Text
-                  fontSize={12.5}
+                  fontSize={11.5}
                   fontWeight="800"
                   color={aiAnalysis.dailyCalorieAdjustment < 0 ? '#2563EB' : '#D97706'}
                 >
@@ -919,75 +705,73 @@ export default function GoalScreen() {
               </YStack>
             </XStack>
 
-            {/* Phân bổ tỷ lệ Macro (Carb / Đạm / Béo) */}
-            <XStack gap="$2">
+            {/* 3 Thẻ Macro (Carb / Đạm / Béo) */}
+            <XStack gap="$1.5">
               <View
                 flex={1}
                 backgroundColor="#FFFFFF"
-                padding="$2.5"
-                borderRadius={14}
+                paddingVertical="$2"
+                paddingHorizontal="$1.5"
+                borderRadius={12}
                 alignItems="center"
                 borderWidth={1}
                 borderColor="#E2E8F0"
               >
-                <Text fontSize={11} fontWeight="700" color="#2563EB">● Carb</Text>
-                <Text fontSize={16} fontWeight="900" color="#0F172A">{aiAnalysis.macros.carbGrams}g</Text>
-                <Text fontSize={10} color="#64748B">{aiAnalysis.macros.carbPercentage}% Calo</Text>
+                <Text fontSize={10.5} fontWeight="700" color="#2563EB">● Carb</Text>
+                <Text fontSize={14.5} fontWeight="900" color="#0F172A">{aiAnalysis.macros.carbGrams}g</Text>
+                <Text fontSize={9.5} color="#64748B">{aiAnalysis.macros.carbPercentage}% calo</Text>
               </View>
 
               <View
                 flex={1}
                 backgroundColor="#FFFFFF"
-                padding="$2.5"
-                borderRadius={14}
+                paddingVertical="$2"
+                paddingHorizontal="$1.5"
+                borderRadius={12}
                 alignItems="center"
                 borderWidth={1}
                 borderColor="#E2E8F0"
               >
-                <Text fontSize={11} fontWeight="700" color="#059669">● Đạm (Protein)</Text>
-                <Text fontSize={16} fontWeight="900" color="#0F172A">{aiAnalysis.macros.proteinGrams}g</Text>
-                <Text fontSize={10} color="#64748B">{aiAnalysis.macros.proteinPercentage}% Calo</Text>
+                <Text fontSize={10.5} fontWeight="700" color="#059669">● Đạm</Text>
+                <Text fontSize={14.5} fontWeight="900" color="#0F172A">{aiAnalysis.macros.proteinGrams}g</Text>
+                <Text fontSize={9.5} color="#64748B">{aiAnalysis.macros.proteinPercentage}% calo</Text>
               </View>
 
               <View
                 flex={1}
                 backgroundColor="#FFFFFF"
-                padding="$2.5"
-                borderRadius={14}
+                paddingVertical="$2"
+                paddingHorizontal="$1.5"
+                borderRadius={12}
                 alignItems="center"
                 borderWidth={1}
                 borderColor="#E2E8F0"
               >
-                <Text fontSize={11} fontWeight="700" color="#EA580C">● Béo (Fat)</Text>
-                <Text fontSize={16} fontWeight="900" color="#0F172A">{aiAnalysis.macros.fatGrams}g</Text>
-                <Text fontSize={10} color="#64748B">{aiAnalysis.macros.fatPercentage}% Calo</Text>
+                <Text fontSize={10.5} fontWeight="700" color="#EA580C">● Béo</Text>
+                <Text fontSize={14.5} fontWeight="900" color="#0F172A">{aiAnalysis.macros.fatGrams}g</Text>
+                <Text fontSize={9.5} color="#64748B">{aiAnalysis.macros.fatPercentage}% calo</Text>
               </View>
             </XStack>
           </YStack>
 
-          {/* Lời khuyên hành động từ AI Coach */}
-          <YStack gap="$2">
-            <Text fontSize={13} fontWeight="800" color="#334155">
-              Lời khuyên hành động từ Huấn luyện viên AI:
-            </Text>
+          {/* Lời khuyên ngắn từ AI */}
+          <YStack gap="$1.5">
             {aiAnalysis.actionableTips.map((tip, idx) => (
-              <XStack key={idx} alignItems="flex-start" gap="$2">
-                <Text fontSize={12.5} color="#475569" lineHeight={18} flex={1}>
-                  {tip}
-                </Text>
-              </XStack>
+              <Text key={idx} fontSize={11.5} color="#475569" lineHeight={16}>
+                {tip}
+              </Text>
             ))}
           </YStack>
 
-          {/* NÚT ÁP DỤNG MỤC TIÊU VÀO TOÀN BỘ ỨNG DỤNG */}
+          {/* NÚT LƯU MỤC TIÊU VÀ ĐỒNG BỘ TOÀN APP */}
           <TouchableOpacity
             activeOpacity={0.85}
             onPress={handleApplyGoal}
             disabled={isSavingGoal}
           >
             <View
-              height={52}
-              borderRadius={26}
+              height={48}
+              borderRadius={24}
               backgroundColor="#0055D4"
               alignItems="center"
               justifyContent="center"
@@ -997,14 +781,14 @@ export default function GoalScreen() {
                 {isSavingGoal ? (
                   <Spinner size="small" color="#FFFFFF" />
                 ) : (
-                  <Text fontSize={16} color="#FFFFFF">
+                  <Text fontSize={15} color="#FFFFFF">
                     ✓
                   </Text>
                 )}
-                <Text color="#FFFFFF" fontSize={15} fontWeight="800">
+                <Text color="#FFFFFF" fontSize={14} fontWeight="800">
                   {isSavingGoal
-                    ? 'Đang đồng bộ hệ thống...'
-                    : `Lưu & Kích hoạt mục tiêu (~${aiAnalysis.dailyCalorieTarget} kcal/ngày)`}
+                    ? 'Đang đồng bộ...'
+                    : `Lưu mục tiêu (~${aiAnalysis.dailyCalorieTarget} kcal)`}
                 </Text>
               </XStack>
             </View>
@@ -1012,45 +796,45 @@ export default function GoalScreen() {
         </YStack>
 
         {/* ========================================================================= */}
-        {/* 4. BIỂU ĐỒ LỊCH SỬ TIẾN TRÌNH CÂN NẶNG & GHI NHẬN HÔM NAY */}
+        {/* 4. BIỂU ĐỒ CÂN NẶNG & GHI NHẬN HÔM NAY */}
         {/* ========================================================================= */}
         <YStack
           backgroundColor="#FFFFFF"
-          borderRadius={24}
-          padding="$4"
+          borderRadius={20}
+          padding="$3.5"
           borderWidth={1}
           borderColor="#E2E8F0"
-          gap="$3.5"
+          gap="$2.5"
           style={THEME.shadow}
         >
           <XStack justifyContent="space-between" alignItems="center">
-            <Text fontSize={15.5} fontWeight="800" color="#0F172A">
+            <Text fontSize={14.5} fontWeight="800" color="#0F172A">
               Tiến trình cân nặng 📈
             </Text>
-            <Text fontSize={12} color="#64748B">
+            <Text fontSize={11.5} color="#64748B">
               {weightHistory.length} lần ghi nhận
             </Text>
           </XStack>
 
-          {/* Biểu đồ cột trực quan */}
+          {/* Biểu đồ trực quan */}
           {isLoading ? (
-            <YStack padding="$6" alignItems="center">
-              <Spinner size="large" color="#0055D4" />
+            <YStack padding="$4" alignItems="center">
+              <Spinner size="small" color="#0055D4" />
             </YStack>
           ) : weightHistory.length === 0 ? (
-            <YStack padding="$4" alignItems="center" gap="$2">
-              <Text fontSize={32}>⚖️</Text>
-              <Text fontSize={13} color="#94A3B8" textAlign="center">
-                Chưa có lịch sử cân nặng. Hãy nhập cân nặng hôm nay bên dưới để bắt đầu theo dõi!
+            <YStack padding="$3" alignItems="center" gap="$1.5">
+              <Text fontSize={26}>⚖️</Text>
+              <Text fontSize={12} color="#94A3B8" textAlign="center">
+                Chưa có lịch sử. Nhập cân nặng hôm nay bên dưới để bắt đầu!
               </Text>
             </YStack>
           ) : (
-            <YStack gap="$2.5">
+            <YStack gap="$1.5">
               <View
-                height={160}
+                height={130}
                 backgroundColor="#F8FAFC"
-                borderRadius={18}
-                padding="$3"
+                borderRadius={14}
+                padding="$2.5"
                 justifyContent="flex-end"
                 borderWidth={1}
                 borderColor="#E2E8F0"
@@ -1067,17 +851,17 @@ export default function GoalScreen() {
                     const isNearTarget = Math.abs(Number(item.weight) - targetWeight) <= 1;
 
                     return (
-                      <YStack key={item.id || index} alignItems="center" gap="$1">
-                        <Text fontSize={10.5} fontWeight="700" color="#0F172A">
+                      <YStack key={item.id || index} alignItems="center" gap="$0.5">
+                        <Text fontSize={9.5} fontWeight="700" color="#0F172A">
                           {item.weight}
                         </Text>
                         <View
-                          width={24}
+                          width={20}
                           height={`${hPercent}%`}
                           backgroundColor={isNearTarget ? '#10B981' : '#0055D4'}
-                          borderRadius={6}
+                          borderRadius={4}
                         />
-                        <Text fontSize={9.5} color="#64748B">
+                        <Text fontSize={8.5} color="#64748B">
                           {item.recorded_date.slice(5)}
                         </Text>
                       </YStack>
@@ -1087,54 +871,48 @@ export default function GoalScreen() {
               </View>
 
               <XStack justifyContent="space-between" paddingHorizontal="$1">
-                <Text fontSize={11.5} color="#64748B">
-                  Mục tiêu hướng tới: <Text fontWeight="800" color="#0055D4">{targetWeight} kg</Text>
+                <Text fontSize={11} color="#64748B">
+                  Mục tiêu: <Text fontWeight="800" color="#0055D4">{targetWeight} kg</Text>
                 </Text>
-                <Text fontSize={11.5} color="#64748B">
+                <Text fontSize={11} color="#64748B">
                   Thấp: {chartData.minW + 2}kg • Cao: {chartData.maxW - 2}kg
                 </Text>
               </XStack>
             </YStack>
           )}
 
-          {/* Ô nhập cân nặng hôm nay */}
-          <YStack gap="$2" paddingTop="$1">
-            <Text fontSize={13} fontWeight="700" color="#334155">
-              Ghi nhận số cân hôm nay:
-            </Text>
+          {/* Ô nhập số cân hôm nay */}
+          <XStack gap="$2" alignItems="center" paddingTop="$1">
+            <Input
+              flex={1}
+              value={newWeightInput}
+              onChangeText={setNewWeightInput}
+              placeholder="Cân nặng hôm nay (kg)"
+              placeholderTextColor="#94A3B8"
+              keyboardType="numeric"
+              backgroundColor="#F8FAFC"
+              borderRadius={14}
+              borderWidth={1.5}
+              borderColor="#E2E8F0"
+              height={42}
+              fontSize={13.5}
+              fontWeight="700"
+              paddingHorizontal="$3"
+            />
 
-            <XStack gap="$2.5" alignItems="center">
-              <Input
-                flex={1}
-                value={newWeightInput}
-                onChangeText={setNewWeightInput}
-                placeholder="Nhập cân nặng (ví dụ: 64.5)"
-                placeholderTextColor="#94A3B8"
-                keyboardType="numeric"
-                backgroundColor="#F8FAFC"
-                borderRadius={18}
-                borderWidth={1.5}
-                borderColor="#E2E8F0"
-                height={46}
-                fontSize={14.5}
-                fontWeight="700"
-                paddingHorizontal="$3.5"
-              />
-
-              <Button
-                backgroundColor="#0055D4"
-                borderRadius={18}
-                height={46}
-                paddingHorizontal="$4"
-                disabled={isSavingWeight}
-                onPress={handleAddWeight}
-              >
-                <Text fontSize={13.5} fontWeight="800" color="#FFFFFF">
-                  {isSavingWeight ? 'Đang lưu...' : 'Lưu lại'}
-                </Text>
-              </Button>
-            </XStack>
-          </YStack>
+            <Button
+              backgroundColor="#0055D4"
+              borderRadius={14}
+              height={42}
+              paddingHorizontal="$3.5"
+              disabled={isSavingWeight}
+              onPress={handleAddWeight}
+            >
+              <Text fontSize={13} fontWeight="800" color="#FFFFFF">
+                {isSavingWeight ? 'Lưu...' : 'Lưu lại'}
+              </Text>
+            </Button>
+          </XStack>
         </YStack>
       </YStack>
     </ScrollView>
