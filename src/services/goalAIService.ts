@@ -149,7 +149,10 @@ export const analyzeGoalWithAI = (input: GoalAIInput): GoalAIAnalysis => {
   else if (targetWeight > currentWeight + 0.2) goalType = 'Tăng cân';
 
   const weeks = Math.max(1, Math.round((targetDays / 7) * 10) / 10);
-  const ratePerWeek = Math.round((weightDiff / (targetDays / 7)) * 100) / 100;
+  const ratePerWeek =
+    goalType === 'Giữ cân'
+      ? 0
+      : Math.round((weightDiff / (targetDays / 7)) * 100) / 100;
 
   // 5. Tính lượng Calo mục tiêu
   // 1kg mỡ cơ thể chứa xấp xỉ 7700 kcal
@@ -164,7 +167,7 @@ export const analyzeGoalWithAI = (input: GoalAIInput): GoalAIAnalysis => {
     const rawTarget = tdee - dailyAdjustment;
     if (rawTarget < safeMinCalorie) {
       isSafeCalorie = false;
-      dailyCalorieTarget = Math.max(1100, rawTarget);
+      dailyCalorieTarget = safeMinCalorie;
     } else {
       dailyCalorieTarget = rawTarget;
     }
@@ -316,6 +319,14 @@ export const analyzeGoalWithAI = (input: GoalAIInput): GoalAIAnalysis => {
     actionableTips.push(`⚖️ Cân định kỳ 1-2 lần mỗi tuần để kịp thời điều chỉnh nếu cân nặng biến động quá 1-2 kg.`);
   }
 
+  if (goalType === 'Giảm cân' && !isSafeCalorie) {
+    const availableDailyDeficit = tdee - safeMinCalorie;
+    if (availableDailyDeficit > 0) {
+      const daysAtSafeMinimum = Math.ceil((weightDiff * 7700) / availableDailyDeficit);
+      suggestedTargetDaysMin = Math.max(suggestedTargetDaysMin || 0, daysAtSafeMinimum);
+    }
+  }
+
   return {
     goalType,
     currentBMI,
@@ -331,7 +342,7 @@ export const analyzeGoalWithAI = (input: GoalAIInput): GoalAIAnalysis => {
     bmr,
     tdee,
     dailyCalorieTarget,
-    dailyCalorieAdjustment: goalType === 'Giảm cân' ? -dailyAdjustment : goalType === 'Tăng cân' ? dailyAdjustment : 0,
+    dailyCalorieAdjustment: dailyCalorieTarget - tdee,
     macros,
     feasibilityScore,
     feasibilityLevel,

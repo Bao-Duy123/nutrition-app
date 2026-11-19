@@ -26,27 +26,17 @@ import {
 import { THEME } from '../../src/constants/theme';
 import { WeightHistory, Profile, DailyMeal } from '../../src/types/database';
 import { useAppModal } from '../../src/components/ModalProvider';
+import { calculateMealsTotal } from '../../src/utils/nutrition';
 import {
   analyzeGoalWithAI,
   GoalAIAnalysis,
 } from '../../src/services/goalAIService';
 
-// Helper lấy chữ cái đầu đại diện avatar
-const getInitials = (name?: string | null): string => {
-  if (!name) return 'NT';
-  const parts = name.trim().split(/\s+/);
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-};
-
-// Helper tính ngày dự kiến hoàn thành
-const getProjectedDateString = (daysRemaining: number): string => {
-  const d = new Date();
-  d.setDate(d.getDate() + Math.max(0, daysRemaining));
-  const day = String(d.getDate()).padStart(2, '0');
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const year = d.getFullYear();
-  return `${day}/${month}/${year}`;
+const getDateString = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 };
 
 interface DayCalorieItem {
@@ -56,6 +46,11 @@ interface DayCalorieItem {
   hasData: boolean;
 }
 
+const requiresScheduleAdjustment = (analysis: GoalAIAnalysis): boolean =>
+  analysis.feasibilityLevel === 'hazardous' ||
+  !analysis.isSafeCalorie ||
+  (analysis.goalType === 'Tăng cân' && analysis.ratePerWeek > 0.6);
+
 export default function GoalScreen() {
   const dispatch = useAppDispatch();
   const modal = useAppModal();
@@ -63,12 +58,12 @@ export default function GoalScreen() {
   const { userId, profile } = useAppSelector((state) => state.auth);
 
   // Dữ liệu thể trạng cơ bản từ profile
-  const [currentWeight, setCurrentWeight] = useState<number>(Number(profile?.current_weight || 0));
-  const [targetWeight, setTargetWeight] = useState<number>(Number(profile?.target_weight || 0));
-  const [targetDays, setTargetDays] = useState<number>(Number(profile?.target_days || 0));
-  const [height, setHeight] = useState<number>(Number(profile?.height || 0));
-  const [age, setAge] = useState<number>(Number(profile?.age || 0));
-  const [gender, setGender] = useState<string>(profile?.gender || 'Nam');
+  const currentWeight = Number(profile?.current_weight || 0);
+  const targetWeight = Number(profile?.target_weight || 0);
+  const targetDays = Number(profile?.target_days || 0);
+  const height = Number(profile?.height || 0);
+  const age = Number(profile?.age || 0);
+  const gender = profile?.gender || 'Nam';
   const activityLevel = profile?.activity_level || 'moderate';
 
   // Lịch sử cân nặng & bữa ăn 7 ngày từ Database
@@ -77,24 +72,13 @@ export default function GoalScreen() {
   const [newWeightInput, setNewWeightInput] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSavingWeight, setIsSavingWeight] = useState<boolean>(false);
+  const [dataError, setDataError] = useState<string | null>(null);
 
   // Modal cài đặt mục tiêu
   const [isConfigModalOpen, setIsConfigModalOpen] = useState<boolean>(false);
   const [inputTargetWeight, setInputTargetWeight] = useState<string>('');
   const [inputTargetDays, setInputTargetDays] = useState<string>('');
   const [isSavingConfig, setIsSavingConfig] = useState<boolean>(false);
-
-  // Đồng bộ state khi profile thay đổi
-  useEffect(() => {
-    if (profile) {
-      if (profile.current_weight != null) setCurrentWeight(Number(profile.current_weight));
-      if (profile.target_weight != null) setTargetWeight(Number(profile.target_weight));
-      if (profile.target_days != null) setTargetDays(Number(profile.target_days));
-      if (profile.height != null) setHeight(Number(profile.height));
-      if (profile.age != null) setAge(Number(profile.age));
-      if (profile.gender) setGender(profile.gender);
-    }
-  }, [profile]);
 
   // Kiểm tra người dùng đã cấu hình mục tiêu hay chưa
   const hasConfiguredGoal = Boolean(
@@ -119,8 +103,8 @@ export default function GoalScreen() {
       const today = new Date();
       const pastDate = new Date();
       pastDate.setDate(today.getDate() - 6);
-      const startDateStr = pastDate.toISOString().split('T')[0];
-      const endDateStr = today.toISOString().split('T')[0];
+      const startDateStr = getDateString(pastDate);
+      const endDateStr = getDateString(today);
 
       const [profileRes, historyRes, mealsRes] = await Promise.all([
         getUserProfile(userId),
@@ -140,15 +124,24 @@ export default function GoalScreen() {
       if (mealsRes.data) {
         setMeals7Days(mealsRes.data);
       }
-    } catch (err: any) {
-      console.warn('Lỗi khi tải dữ liệu thực từ database:', err);
+      const requestError = profileRes.error || historyRes.error || mealsRes.error;
+      setDataError(requestError ? 'Một số dữ liệu chưa tải được. Vui lòng thử tải lại.' : null);
+    } catch (err) {
+      setDataError(
+        err instanceof Error
+          ? `Không thể tải dữ liệu: ${err.message}`
+          : 'Không thể tải dữ liệu. Vui lòng thử lại.'
+      );
     } finally {
       setIsLoading(false);
     }
   }, [userId, dispatch]);
 
   useEffect(() => {
-    fetchData();
+    const timer = setTimeout(() => {
+      void fetchData();
+    }, 0);
+    return () => clearTimeout(timer);
   }, [fetchData]);
 
   // PHÂN TÍCH CHUYỂN HÓA VÀ DINH DƯỠNG BẰNG AI THEO DỮ LIỆU THỰC
@@ -165,64 +158,52 @@ export default function GoalScreen() {
     });
   }, [hasConfiguredGoal, currentWeight, targetWeight, height, age, gender, activityLevel, targetDays]);
 
-  // TÍNH TOÁN TIẾN TRÌNH THEO SỐ NGÀY ĐÃ CẤU HÌNH
+  // Chỉ hiển thị khoảng cách tới mục tiêu; không suy đoán ngày bắt đầu từ lịch sử cân cũ.
   const progressMetrics = useMemo(() => {
-    if (!hasConfiguredGoal || !aiAnalysis) {
-      return {
-        startWeight: currentWeight,
-        weightDiff: 0,
-        achievedKg: 0,
-        progressPercent: 0,
-        daysPassed: 0,
-        daysRemaining: 0,
-        weeksRemaining: 0,
-        projectedDateStr: '',
-        remainingWeightToGoal: 0,
-      };
+    const remainingWeightToGoal = Math.round((targetWeight - currentWeight) * 10) / 10;
+    return { remainingWeightToGoal };
+  }, [currentWeight, targetWeight]);
+
+  const recentWeightHistory = useMemo(
+    () => [...weightHistory].slice(-5).reverse(),
+    [weightHistory]
+  );
+
+  const configPreview = useMemo(() => {
+    const previewWeight = Number(inputTargetWeight.trim().replace(',', '.'));
+    const previewDays = Number(inputTargetDays.trim());
+    if (
+      currentWeight <= 0 ||
+      height <= 0 ||
+      age <= 0 ||
+      !Number.isFinite(previewWeight) ||
+      previewWeight <= 20 ||
+      previewWeight >= 300 ||
+      !Number.isInteger(previewDays) ||
+      previewDays < 7 ||
+      previewDays > 730
+    ) {
+      return null;
     }
 
-    // Cân nặng bắt đầu: Lấy từ bản ghi đầu tiên trong weight_history hoặc currentWeight
-    const startWeight =
-      weightHistory.length > 0 ? Number(weightHistory[0].weight) : currentWeight;
-
-    // Ngày bắt đầu: Lấy từ bản ghi đầu tiên hoặc profile.created_at
-    const startDateRaw =
-      weightHistory.length > 0
-        ? weightHistory[0].recorded_date
-        : profile?.created_at || getTodayDateString();
-
-    const startTimestamp = new Date(startDateRaw).getTime();
-    const daysSinceStart = Math.max(
-      1,
-      Math.floor((Date.now() - startTimestamp) / (1000 * 60 * 60 * 24)) + 1
-    );
-
-    const daysPassed = Math.min(targetDays, daysSinceStart);
-    const daysRemaining = Math.max(0, targetDays - daysPassed);
-    const weeksRemaining = Math.ceil(daysRemaining / 7);
-    const projectedDateStr = getProjectedDateString(daysRemaining);
-
-    const totalNeedToChange = Math.abs(startWeight - targetWeight);
-    const achievedKg = Math.round(Math.abs(startWeight - currentWeight) * 10) / 10;
-    const progressPercent =
-      totalNeedToChange > 0
-        ? Math.min(100, Math.round((achievedKg / totalNeedToChange) * 100))
-        : 100;
-
-    const remainingWeightToGoal = Math.round((targetWeight - currentWeight) * 10) / 10;
-
-    return {
-      startWeight,
-      weightDiff: aiAnalysis.weightDiff,
-      achievedKg,
-      progressPercent,
-      daysPassed,
-      daysRemaining,
-      weeksRemaining,
-      projectedDateStr,
-      remainingWeightToGoal,
-    };
-  }, [hasConfiguredGoal, aiAnalysis, currentWeight, targetWeight, targetDays, weightHistory, profile]);
+    return analyzeGoalWithAI({
+      currentWeight,
+      targetWeight: previewWeight,
+      height,
+      age,
+      gender,
+      activityLevel,
+      targetDays: previewDays,
+    });
+  }, [
+    inputTargetWeight,
+    inputTargetDays,
+    currentWeight,
+    height,
+    age,
+    gender,
+    activityLevel,
+  ]);
 
   // TÍNH TOÁN DỮ LIỆU CALO 7 NGÀY QUA TỪ DATABASE THỰC
   const past7DaysMetrics = useMemo(() => {
@@ -233,37 +214,31 @@ export default function GoalScreen() {
     for (let i = 6; i >= 0; i--) {
       const d = new Date();
       d.setDate(today.getDate() - i);
-      const dateStr = d.toISOString().split('T')[0];
+      const dateStr = getDateString(d);
       const dayLabel = dayNames[d.getDay()];
 
       const dayMeals = meals7Days.filter((m) => m.consumed_date === dateStr);
-      const totalCal = dayMeals.reduce((sum, m) => {
-        const cal =
-          m.calories != null
-            ? Number(m.calories)
-            : m.foods?.calories
-            ? Number(m.foods.calories) * Number(m.quantity || 1)
-            : 0;
-        return sum + cal;
-      }, 0);
 
       list.push({
         dayLabel,
         dateStr,
-        calories: Math.round(totalCal),
+        calories: calculateMealsTotal(dayMeals).calories,
         hasData: dayMeals.length > 0,
       });
     }
 
-    const targetCal = aiAnalysis?.dailyCalorieTarget || profile?.daily_calorie_goal || 2000;
+    const targetCal =
+      aiAnalysis?.dailyCalorieTarget ||
+      (Number(profile?.daily_calorie_goal) > 0 ? Number(profile?.daily_calorie_goal) : 0);
     const loggedDays = list.filter((d) => d.hasData);
-    const daysWithinGoal = loggedDays.filter((d) => d.calories <= targetCal).length;
+    const daysWithinGoal =
+      targetCal > 0 ? loggedDays.filter((d) => d.calories <= targetCal).length : 0;
     const avgCal =
       loggedDays.length > 0
         ? Math.round(loggedDays.reduce((sum, d) => sum + d.calories, 0) / loggedDays.length)
         : 0;
 
-    const maxCal = Math.max(targetCal * 1.25, ...list.map((d) => d.calories), 2200);
+    const maxCal = Math.max(...loggedDays.map((d) => d.calories), 1);
 
     return {
       list,
@@ -284,8 +259,8 @@ export default function GoalScreen() {
 
   // Lưu cấu hình mục tiêu mới vào Supabase
   const handleSaveConfig = async () => {
-    const newTargetW = parseFloat(inputTargetWeight);
-    const newDays = parseInt(inputTargetDays, 10);
+    const newTargetW = Number(inputTargetWeight.trim().replace(',', '.'));
+    const newDays = Number(inputTargetDays.trim());
 
     if (isNaN(newTargetW) || newTargetW <= 20 || newTargetW >= 300) {
       await modal.alert({
@@ -296,7 +271,7 @@ export default function GoalScreen() {
       return;
     }
 
-    if (isNaN(newDays) || newDays < 7 || newDays > 730) {
+    if (!Number.isInteger(newDays) || newDays < 7 || newDays > 730) {
       await modal.alert({
         title: 'Số ngày không hợp lệ',
         message: 'Vui lòng nhập số ngày hoàn thành từ 7 ngày đến 730 ngày (2 năm).',
@@ -305,20 +280,36 @@ export default function GoalScreen() {
       return;
     }
 
-    // Tính toán lại BMR, TDEE và Calo với dữ liệu mục tiêu mới
-    const safeCurrentW = currentWeight > 0 ? currentWeight : newTargetW;
-    const safeHeight = height > 0 ? height : 168;
-    const safeAge = age > 0 ? age : 25;
+    if (!userId || !profile || currentWeight <= 0 || height <= 0 || age <= 0) {
+      await modal.alert({
+        title: 'Thiếu thông tin sức khỏe',
+        message: 'Vui lòng hoàn tất cân nặng hiện tại, chiều cao và tuổi trong hồ sơ trước khi thiết lập mục tiêu.',
+        type: 'warning',
+      });
+      return;
+    }
 
     const previewAnalysis = analyzeGoalWithAI({
-      currentWeight: safeCurrentW,
+      currentWeight,
       targetWeight: newTargetW,
-      height: safeHeight,
-      age: safeAge,
+      height,
+      age,
       gender,
       activityLevel,
       targetDays: newDays,
     });
+
+    if (requiresScheduleAdjustment(previewAnalysis)) {
+      const suggestedDays = previewAnalysis.suggestedTargetDaysMin;
+      await modal.alert({
+        title: 'Thời hạn cần điều chỉnh',
+        message: suggestedDays
+          ? `Tốc độ này vượt ngưỡng khuyến nghị hoặc cần mức calo quá thấp. Hãy kéo dài mục tiêu lên ít nhất ${suggestedDays} ngày để có kế hoạch phù hợp hơn.`
+          : 'Tốc độ này vượt ngưỡng khuyến nghị. Hãy kéo dài thời hạn trước khi lưu mục tiêu.',
+        type: 'warning',
+      });
+      return;
+    }
 
     try {
       setIsSavingConfig(true);
@@ -332,38 +323,31 @@ export default function GoalScreen() {
         tdee: previewAnalysis.tdee,
       };
 
-      if (userId) {
-        const { error } = await updateUserProfile(userId, updates);
-        if (error) {
-          await modal.alert({
-            title: 'Lỗi lưu dữ liệu',
-            message: error.message || 'Không thể lưu mục tiêu vào Supabase.',
-            type: 'error',
-          });
-          setIsSavingConfig(false);
-          return;
-        }
+      const { data: savedProfile, error } = await updateUserProfile(userId, updates);
+      if (error || !savedProfile) {
+        await modal.alert({
+          title: 'Lỗi lưu dữ liệu',
+          message: error?.message || 'Không thể lưu mục tiêu vào hồ sơ. Vui lòng thử lại.',
+          type: 'error',
+        });
+        return;
       }
 
-      // Cập nhật Redux Store
-      const updatedProfile = { ...(profile || {}), ...updates } as Profile;
-      dispatch(setAuthProfile(updatedProfile));
-      dispatch(setStoreProfile(updatedProfile));
+      dispatch(setAuthProfile(savedProfile));
+      dispatch(setStoreProfile(savedProfile));
       dispatch(setDailyCalorieGoal(previewAnalysis.dailyCalorieTarget));
 
-      setTargetWeight(newTargetW);
-      setTargetDays(newDays);
       setIsConfigModalOpen(false);
 
       await modal.alert({
         title: 'Cài đặt mục tiêu thành công! 🎯',
-        message: `Đã thiết lập ${previewAnalysis.goalType} về ${newTargetW} kg trong ${newDays} ngày (~${previewAnalysis.dailyCalorieTarget} kcal/ngày). Toàn bộ hệ thống đã được đồng bộ!`,
+        message: `Đã thiết lập ${previewAnalysis.goalType} về ${newTargetW} kg trong ${newDays} ngày (${previewAnalysis.dailyCalorieTarget.toLocaleString()} kcal/ngày).`,
         type: 'success',
       });
-    } catch (err: any) {
+    } catch (err) {
       await modal.alert({
         title: 'Lỗi',
-        message: err?.message || 'Có lỗi xảy ra khi lưu mục tiêu.',
+        message: err instanceof Error ? err.message : 'Có lỗi xảy ra khi lưu mục tiêu.',
         type: 'error',
       });
     } finally {
@@ -373,7 +357,7 @@ export default function GoalScreen() {
 
   // Ghi nhận cân nặng hôm nay vào Database thực
   const handleAddWeight = async () => {
-    const val = parseFloat(newWeightInput);
+    const val = Number(newWeightInput.trim().replace(',', '.'));
     if (isNaN(val) || val <= 20 || val >= 300) {
       await modal.alert({
         title: 'Cân nặng không hợp lệ',
@@ -383,37 +367,52 @@ export default function GoalScreen() {
       return;
     }
 
+    if (!userId || !profile) {
+      await modal.alert({
+        title: 'Chưa thể ghi nhận',
+        message: 'Vui lòng đăng nhập và hoàn tất hồ sơ trước khi ghi nhận cân nặng.',
+        type: 'warning',
+      });
+      return;
+    }
+
     try {
       setIsSavingWeight(true);
       const todayStr = getTodayDateString();
 
-      if (userId) {
-        const { error } = await addWeightRecord(userId, val, todayStr);
-        if (error) {
-          await modal.alert({
-            title: 'Lỗi',
-            message: error.message || 'Không thể lưu cân nặng vào nhật ký.',
-            type: 'error',
-          });
-          setIsSavingWeight(false);
-          return;
-        }
-
-        await updateUserProfile(userId, { current_weight: val });
+      const { data: savedRecord, error: historyError } = await addWeightRecord(userId, val, todayStr);
+      if (historyError || !savedRecord) {
+        await modal.alert({
+          title: 'Lỗi ghi nhận',
+          message: historyError?.message || 'Không thể lưu cân nặng vào lịch sử.',
+          type: 'error',
+        });
+        return;
       }
 
-      setCurrentWeight(val);
-      const updated = { ...(profile || {}), current_weight: val } as Profile;
-      dispatch(setAuthProfile(updated));
-      dispatch(setStoreProfile(updated));
+      const { data: updatedProfile, error: profileError } = await updateUserProfile(userId, {
+        current_weight: val,
+      });
+      if (profileError || !updatedProfile) {
+        setWeightHistory((prev) => [
+          ...prev.filter((weight) => weight.recorded_date !== todayStr),
+          savedRecord,
+        ]);
+        await modal.alert({
+          title: 'Chưa đồng bộ hồ sơ',
+          message: 'Cân nặng đã được ghi vào lịch sử nhưng hồ sơ chưa cập nhật. Vui lòng tải lại và thử lại.',
+          type: 'error',
+        });
+        return;
+      }
 
-      const newRecord: WeightHistory = {
-        id: Date.now(),
-        user_id: userId || 'local',
-        weight: val,
-        recorded_date: todayStr,
-      };
-      setWeightHistory((prev) => [...prev.filter((w) => w.recorded_date !== todayStr), newRecord]);
+      dispatch(setAuthProfile(updatedProfile));
+      dispatch(setStoreProfile(updatedProfile));
+
+      setWeightHistory((prev) => [
+        ...prev.filter((weight) => weight.recorded_date !== todayStr),
+        savedRecord,
+      ]);
       setNewWeightInput('');
 
       await modal.alert({
@@ -421,8 +420,12 @@ export default function GoalScreen() {
         message: `Đã cập nhật cân nặng mới nhất: ${val} kg.`,
         type: 'success',
       });
-    } catch (err: any) {
-      console.warn('Lỗi ghi nhận cân nặng:', err);
+    } catch (err) {
+      await modal.alert({
+        title: 'Không thể ghi nhận',
+        message: err instanceof Error ? err.message : 'Đã xảy ra lỗi khi ghi nhận cân nặng.',
+        type: 'error',
+      });
     } finally {
       setIsSavingWeight(false);
     }
@@ -437,11 +440,11 @@ export default function GoalScreen() {
       }}
       showsVerticalScrollIndicator={false}
     >
-      <YStack paddingHorizontal="$4" gap="$3.5">
+      <YStack paddingHorizontal="$4" gap="$5">
         {/* ========================================================================= */}
-        {/* TOP HEADER: MỤC TIÊU & TIẾN TRÌNH + SUB-BADGE + CHUÔNG + AVATAR */}
+        {/* TOP HEADER */}
         {/* ========================================================================= */}
-        <XStack justifyContent="space-between" alignItems="center">
+        <XStack alignItems="center">
           <XStack alignItems="center" gap="$2.5">
             {/* Icon tròn bên trái */}
             <View
@@ -463,63 +466,58 @@ export default function GoalScreen() {
               </Text>
 
               {/* Sub-badge trạng thái */}
-              {hasConfiguredGoal && aiAnalysis ? (
+              {hasConfiguredGoal && aiAnalysis && (
                 <View
-                  backgroundColor="#DCFCE7"
+                  backgroundColor={
+                    requiresScheduleAdjustment(aiAnalysis)
+                      ? '#FEF3C7'
+                      : '#DCFCE7'
+                  }
                   paddingHorizontal="$2"
                   paddingVertical="$0.5"
                   borderRadius={10}
                   alignSelf="flex-start"
                 >
-                  <Text fontSize={10.5} fontWeight="700" color="#16A34A">
-                    ● Đang {aiAnalysis.goalType.toLowerCase()} (~{aiAnalysis.ratePerWeek} kg/tuần)
-                  </Text>
-                </View>
-              ) : (
-                <View
-                  backgroundColor="#F1F5F9"
-                  paddingHorizontal="$2"
-                  paddingVertical="$0.5"
-                  borderRadius={10}
-                  alignSelf="flex-start"
-                >
-                  <Text fontSize={10.5} fontWeight="700" color="#64748B">
-                    ● Chưa cấu hình mục tiêu
+                  <Text
+                    fontSize={10.5}
+                    fontWeight="700"
+                    color={
+                      requiresScheduleAdjustment(aiAnalysis)
+                        ? '#B45309'
+                        : '#16A34A'
+                    }
+                  >
+                    {requiresScheduleAdjustment(aiAnalysis)
+                      ? '● Cần điều chỉnh thời hạn'
+                      : `● ${aiAnalysis.goalType} (~${aiAnalysis.ratePerWeek} kg/tuần)`}
                   </Text>
                 </View>
               )}
             </YStack>
           </XStack>
-
-          {/* Nút Chuông & Avatar bên phải */}
-          <XStack alignItems="center" gap="$2">
-            <View
-              width={36}
-              height={36}
-              borderRadius={18}
-              backgroundColor="#FFFFFF"
-              alignItems="center"
-              justifyContent="center"
-              borderWidth={1}
-              borderColor="#E2E8F0"
-            >
-              <Text fontSize={15}>🔔</Text>
-            </View>
-
-            <View
-              width={36}
-              height={36}
-              borderRadius={18}
-              backgroundColor="#0055D4"
-              alignItems="center"
-              justifyContent="center"
-            >
-              <Text fontSize={13} fontWeight="800" color="#FFFFFF">
-                {getInitials(profile?.full_name)}
-              </Text>
-            </View>
-          </XStack>
         </XStack>
+
+        {dataError && (
+          <XStack
+            backgroundColor="#FEF2F2"
+            borderColor="#FECACA"
+            borderWidth={1}
+            borderRadius={14}
+            padding="$3"
+            alignItems="center"
+            justifyContent="space-between"
+            gap="$2"
+          >
+            <Text flex={1} fontSize={11.5} color="#B91C1C">
+              {dataError}
+            </Text>
+            <TouchableOpacity onPress={() => void fetchData()} disabled={isLoading}>
+              <Text fontSize={11.5} fontWeight="800" color="#0055D4">
+                {isLoading ? 'Đang tải' : 'Tải lại'}
+              </Text>
+            </TouchableOpacity>
+          </XStack>
+        )}
 
         {/* ========================================================================= */}
         {/* KHỐI 1: TỔNG QUAN MỤC TIÊU (MATCH PICTURE/MỤC TIÊU.PNG) */}
@@ -530,13 +528,13 @@ export default function GoalScreen() {
           padding="$4"
           borderWidth={1}
           borderColor="#E2E8F0"
-          gap="$3"
+          gap="$4"
           style={THEME.shadow}
         >
           {/* Hàng trên: Nhãn & Nút Cài đặt mục tiêu */}
           <XStack justifyContent="space-between" alignItems="center">
             <Text fontSize={11} fontWeight="800" color="#64748B" letterSpacing={0.5}>
-              TỔNG QUAN MỤC TIÊU
+              {hasConfiguredGoal ? 'KẾ HOẠCH HIỆN TẠI' : 'CHƯA CÓ MỤC TIÊU'}
             </Text>
 
             <TouchableOpacity activeOpacity={0.7} onPress={handleOpenConfigModal}>
@@ -621,78 +619,29 @@ export default function GoalScreen() {
                   gap="$0.5"
                 >
                   <Text fontSize={11} fontWeight="600" color="#64748B">
-                    Còn lại
+                    {progressMetrics.remainingWeightToGoal === 0
+                      ? 'Trạng thái'
+                      : progressMetrics.remainingWeightToGoal < 0
+                      ? 'Cần giảm'
+                      : 'Cần tăng'}
                   </Text>
                   <Text
                     fontSize={18}
                     fontWeight="900"
-                    color={progressMetrics.remainingWeightToGoal < 0 ? '#EA580C' : '#059669'}
+                    color={progressMetrics.remainingWeightToGoal === 0 ? '#059669' : '#0055D4'}
                   >
-                    {progressMetrics.remainingWeightToGoal > 0 ? `+${progressMetrics.remainingWeightToGoal}` : progressMetrics.remainingWeightToGoal}{' '}
-                    <Text fontSize={11} fontWeight="600">kg</Text>
+                    {progressMetrics.remainingWeightToGoal === 0
+                      ? 'Đã đạt'
+                      : `${Math.abs(progressMetrics.remainingWeightToGoal).toFixed(1)} kg`}
                   </Text>
                 </View>
               </XStack>
 
-              {/* Thanh tiến độ hoàn thành */}
-              <YStack gap="$1.5">
-                <XStack justifyContent="space-between" alignItems="center">
-                  <Text fontSize={11.5} color="#475569" fontWeight="600">
-                    Tiến độ hoàn thành: <Text fontWeight="800" color="#0055D4">{progressMetrics.progressPercent}%</Text> (Đã đạt {progressMetrics.achievedKg} kg)
-                  </Text>
-                  <Text fontSize={11} color="#64748B">
-                    Bắt đầu: {progressMetrics.startWeight} kg
-                  </Text>
-                </XStack>
-
-                <View height={8} backgroundColor="#E2E8F0" borderRadius={4} overflow="hidden">
-                  <View
-                    width={`${progressMetrics.progressPercent}%`}
-                    height="100%"
-                    backgroundColor="#0055D4"
-                    borderRadius={4}
-                  />
-                </View>
-              </YStack>
-
-              {/* Hàng thời gian dự kiến */}
-              <XStack justifyContent="space-between" alignItems="center" paddingTop="$0.5">
-                <XStack alignItems="center" gap="$1.5">
-                  <Text fontSize={13}>📅</Text>
-                  <Text fontSize={12} color="#64748B" fontWeight="600">
-                    Thời gian dự kiến:
-                  </Text>
-                </XStack>
-
-                <Text fontSize={12} fontWeight="800" color="#0F172A">
-                  Còn {progressMetrics.weeksRemaining} tuần (Dự kiến: {progressMetrics.projectedDateStr})
-                </Text>
-              </XStack>
+              <Text fontSize={11.5} color="#64748B">
+                Thời hạn: <Text fontWeight="800" color="#0F172A">{targetDays} ngày</Text>
+              </Text>
             </>
-          ) : (
-            /* Trạng thái chưa cấu hình mục tiêu */
-            <YStack paddingVertical="$3" alignItems="center" gap="$2.5">
-              <Text fontSize={32}>🎯</Text>
-              <Text fontSize={15} fontWeight="800" color="#0F172A" textAlign="center">
-                Bạn chưa cấu hình mục tiêu cân nặng
-              </Text>
-              <Text fontSize={12} color="#64748B" textAlign="center" maxWidth={290} lineHeight={17}>
-                Hãy bấm nút "Cài đặt mục tiêu" phía trên để thiết lập số cân mong muốn và số ngày hoàn thành.
-              </Text>
-              <TouchableOpacity activeOpacity={0.85} onPress={handleOpenConfigModal}>
-                <View
-                  backgroundColor="#0055D4"
-                  paddingHorizontal="$4"
-                  paddingVertical="$2"
-                  borderRadius={18}
-                >
-                  <Text fontSize={13} fontWeight="800" color="#FFFFFF">
-                    Cài đặt mục tiêu ngay
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            </YStack>
-          )}
+          ) : null}
         </YStack>
 
         {/* ========================================================================= */}
@@ -717,31 +666,6 @@ export default function GoalScreen() {
 
           {hasConfiguredGoal && aiAnalysis ? (
             <>
-              {/* Tabs chuyển đổi: Giảm cân | Giữ cân | Tăng cân (Khóa theo mục tiêu đang cấu hình) */}
-              <XStack backgroundColor="#F1F5F9" padding="$1" borderRadius={20} gap="$1">
-                {(['Giảm cân', 'Giữ cân', 'Tăng cân'] as const).map((g) => {
-                  const isActive = aiAnalysis.goalType === g;
-                  return (
-                    <View
-                      key={g}
-                      flex={1}
-                      backgroundColor={isActive ? '#0055D4' : 'transparent'}
-                      paddingVertical="$1.5"
-                      borderRadius={16}
-                      alignItems="center"
-                    >
-                      <Text
-                        fontSize={12}
-                        fontWeight={isActive ? '800' : '600'}
-                        color={isActive ? '#FFFFFF' : '#64748B'}
-                      >
-                        {g}
-                      </Text>
-                    </View>
-                  );
-                })}
-              </XStack>
-
               {/* 2 Thẻ: BMR cơ bản & TDEE vận động */}
               <XStack gap="$2.5">
                 <View
@@ -763,7 +687,7 @@ export default function GoalScreen() {
                     {aiAnalysis.bmr.toLocaleString()} <Text fontSize={12} fontWeight="600">kcal</Text>
                   </Text>
                   <Text fontSize={10} color="#64748B">
-                    Năng lượng sinh tồn tối thiểu
+                    Năng lượng cơ thể khi nghỉ ngơi
                   </Text>
                 </View>
 
@@ -802,7 +726,7 @@ export default function GoalScreen() {
                 <XStack justifyContent="space-between" alignItems="center">
                   <YStack gap="$0.5">
                     <Text fontSize={11.5} fontWeight="700" color="#475569">
-                      Hạn mức Calo nạp mỗi ngày
+                      Mục tiêu calo/ngày
                     </Text>
                     <XStack alignItems="baseline" gap="$1.5">
                       <Text fontSize={28} fontWeight="900" color="#0055D4">
@@ -825,17 +749,19 @@ export default function GoalScreen() {
                     >
                       <Text fontSize={11} fontWeight="800" color="#C2410C">
                         {aiAnalysis.dailyCalorieAdjustment < 0
-                          ? `Thâm hụt ${aiAnalysis.dailyCalorieAdjustment} kcal`
+                            ? `Thâm hụt ${Math.abs(aiAnalysis.dailyCalorieAdjustment)} kcal`
                           : aiAnalysis.dailyCalorieAdjustment > 0
                           ? `Thặng dư +${aiAnalysis.dailyCalorieAdjustment} kcal`
                           : 'Cân bằng 0 kcal'}
                       </Text>
                     </View>
-                    <Text fontSize={10.5} color="#64748B">
-                      ~ {aiAnalysis.ratePerWeek} kg {aiAnalysis.goalType.toLowerCase()}/tuần
-                    </Text>
                   </YStack>
                 </XStack>
+                {!aiAnalysis.isSafeCalorie && (
+                  <Text fontSize={11} color="#B45309">
+                    Mức calo đã được giới hạn ở ngưỡng tối thiểu; hãy kéo dài thời hạn để đạt tốc độ phù hợp.
+                  </Text>
+                )}
               </View>
 
               {/* Thanh phân bổ Macros mục tiêu (Đạm, Tinh bột, Chất béo) */}
@@ -890,14 +816,14 @@ export default function GoalScreen() {
           ) : (
             <YStack paddingVertical="$2" alignItems="center" gap="$1">
               <Text fontSize={12} color="#94A3B8" textAlign="center">
-                Chưa có dữ liệu tính toán. Vui lòng cấu hình mục tiêu để hiển thị BMR, TDEE và định mức calo.
+                Thiết lập mục tiêu để xem BMR, TDEE và calo đề xuất.
               </Text>
             </YStack>
           )}
         </YStack>
 
         {/* ========================================================================= */}
-        {/* KHỐI 3: 📉 TIẾN TRÌNH CÂN NẶNG (PHỤ THUỘC SỐ NGÀY ĐÃ CẤU HÌNH) */}
+        {/* KHỐI 3: LỊCH SỬ CÂN NẶNG ĐÃ GHI NHẬN */}
         {/* ========================================================================= */}
         <YStack
           backgroundColor="#FFFFFF"
@@ -905,248 +831,44 @@ export default function GoalScreen() {
           padding="$4"
           borderWidth={1}
           borderColor="#E2E8F0"
-          gap="$3"
+          gap="$4"
           style={THEME.shadow}
         >
-          {/* Header Tiến trình */}
-          <YStack gap="$0.5">
-            <XStack alignItems="center" gap="$2">
-              <Text fontSize={16}>📉</Text>
-              <Text fontSize={16} fontWeight="900" color="#0F172A">
-                Tiến trình cân nặng
-              </Text>
-            </XStack>
-            <Text fontSize={11.5} color="#64748B">
-              {hasConfiguredGoal
-                ? `Theo kế hoạch ${targetDays} ngày đã cấu hình`
-                : 'Chưa cấu hình chu kỳ mục tiêu'}
+          {/* Header theo dõi cân nặng */}
+          <XStack alignItems="center" gap="$2">
+            <Text fontSize={16}>📉</Text>
+            <Text fontSize={16} fontWeight="900" color="#0F172A">
+              Lịch sử cân nặng
             </Text>
-          </YStack>
+          </XStack>
 
-          {hasConfiguredGoal ? (
-            <>
-              {/* Badges thông tin */}
-              <XStack gap="$2" flexWrap="wrap">
-                <View
-                  backgroundColor="#DCFCE7"
-                  paddingHorizontal="$2.5"
-                  paddingVertical="$1"
+          {recentWeightHistory.length > 0 ? (
+            <YStack gap="$2">
+              {recentWeightHistory.map((record) => (
+                <XStack
+                  key={record.id}
+                  justifyContent="space-between"
+                  alignItems="center"
+                  backgroundColor="#F8FAFC"
+                  paddingHorizontal="$3"
+                  paddingVertical="$2.5"
                   borderRadius={12}
+                  borderWidth={1}
+                  borderColor="#E2E8F0"
                 >
-                  <Text fontSize={11.5} fontWeight="800" color="#16A34A">
-                    ↓ -{progressMetrics.achievedKg} kg
+                  <Text fontSize={12} color="#64748B">
+                    {record.recorded_date.split('-').reverse().join('/')}
                   </Text>
-                </View>
-
-                <View
-                  backgroundColor="#EFF6FF"
-                  paddingHorizontal="$2.5"
-                  paddingVertical="$1"
-                  borderRadius={12}
-                >
-                  <Text fontSize={11.5} fontWeight="800" color="#0055D4">
-                    📅 Kế hoạch {targetDays} ngày
-                  </Text>
-                </View>
-              </XStack>
-
-              {/* Status Box: Chu kỳ mục tiêu đã qua & còn lại */}
-              <View
-                backgroundColor="#F0F7FF"
-                borderRadius={14}
-                paddingHorizontal="$3"
-                paddingVertical="$2"
-              >
-                <XStack justifyContent="space-between" alignItems="center">
-                  <XStack alignItems="center" gap="$1.5">
-                    <Text fontSize={13}>🕒</Text>
-                    <Text fontSize={11.5} color="#475569" fontWeight="600">
-                      Chu kỳ cấu hình: <Text fontWeight="800" color="#0055D4">{targetDays} ngày</Text>
-                    </Text>
-                  </XStack>
-
-                  <Text fontSize={11.5} color="#475569" fontWeight="600">
-                    Đã qua: <Text fontWeight="800" color="#0F172A">{progressMetrics.daysPassed} ngày</Text> • Còn lại: <Text fontWeight="800" color="#0055D4">{progressMetrics.daysRemaining} ngày</Text>
+                  <Text fontSize={14} fontWeight="800" color="#0F172A">
+                    {Number(record.weight).toFixed(1)} kg
                   </Text>
                 </XStack>
-              </View>
-
-              {/* Filter Pills */}
-              <XStack gap="$1.5" alignItems="center">
-                <View
-                  backgroundColor="#0055D4"
-                  paddingHorizontal="$2.5"
-                  paddingVertical="$1"
-                  borderRadius={12}
-                >
-                  <Text fontSize={11} fontWeight="800" color="#FFFFFF">
-                    Toàn kỳ ({targetDays} ngày)
-                  </Text>
-                </View>
-
-                <View
-                  backgroundColor="#F1F5F9"
-                  paddingHorizontal="$2.5"
-                  paddingVertical="$1"
-                  borderRadius={12}
-                >
-                  <Text fontSize={11} fontWeight="600" color="#64748B">
-                    30 ngày gần đây
-                  </Text>
-                </View>
-
-                <View
-                  backgroundColor="#F1F5F9"
-                  paddingHorizontal="$2.5"
-                  paddingVertical="$1"
-                  borderRadius={12}
-                >
-                  <Text fontSize={11} fontWeight="600" color="#64748B">
-                    14 ngày
-                  </Text>
-                </View>
-              </XStack>
-
-              {/* Biểu đồ đường tiến trình cân nặng (Vẽ từ dữ liệu thực trong weight_history) */}
-              {weightHistory.length > 0 ? (
-                <YStack gap="$2" paddingTop="$1">
-                  <View
-                    height={160}
-                    backgroundColor="#F0F7FF"
-                    borderRadius={18}
-                    borderWidth={1}
-                    borderColor="#DBEAFE"
-                    padding="$3"
-                    justifyContent="space-between"
-                  >
-                    {/* Các đường grid ngang với mốc cân */}
-                    <YStack
-                      position="absolute"
-                      top={12}
-                      bottom={28}
-                      left={12}
-                      right={12}
-                      justifyContent="space-between"
-                    >
-                      <XStack justifyContent="space-between" alignItems="center">
-                        <Text fontSize={10} color="#94A3B8">
-                          {Math.max(currentWeight, targetWeight) + 2}kg
-                        </Text>
-                        <View flex={1} height={1} backgroundColor="#E2E8F0" marginLeft="$2" />
-                      </XStack>
-                      <XStack justifyContent="space-between" alignItems="center">
-                        <Text fontSize={10} color="#94A3B8">
-                          {Math.round((currentWeight + targetWeight) / 2)}kg
-                        </Text>
-                        <View flex={1} height={1} backgroundColor="#E2E8F0" marginLeft="$2" />
-                      </XStack>
-                      <XStack justifyContent="space-between" alignItems="center">
-                        <Text fontSize={10} color="#94A3B8">
-                          {targetWeight}kg
-                        </Text>
-                        <View flex={1} height={1} backgroundColor="#BFDBFE" marginLeft="$2" borderStyle="dashed" />
-                      </XStack>
-                    </YStack>
-
-                    {/* Vùng vẽ các điểm cân nặng thực tế và điểm dự phóng */}
-                    <XStack
-                      height="100%"
-                      alignItems="center"
-                      justifyContent="space-between"
-                      paddingHorizontal="$4"
-                      paddingBottom="$4"
-                    >
-                      {/* Điểm Ngày 1 */}
-                      <YStack alignItems="center" gap="$1">
-                        <View
-                          width={10}
-                          height={10}
-                          borderRadius={5}
-                          backgroundColor="#0055D4"
-                          borderWidth={2}
-                          borderColor="#FFFFFF"
-                        />
-                        <Text fontSize={10} color="#64748B" fontWeight="600">
-                          {progressMetrics.startWeight}kg
-                        </Text>
-                      </YStack>
-
-                      {/* Điểm Hiện tại (Hôm nay) với badge nổi bật màu đen */}
-                      <YStack alignItems="center" gap="$1">
-                        <View
-                          backgroundColor="#0F172A"
-                          paddingHorizontal="$2"
-                          paddingVertical="$0.5"
-                          borderRadius={8}
-                        >
-                          <Text fontSize={11} fontWeight="800" color="#FFFFFF">
-                            {currentWeight} kg
-                          </Text>
-                        </View>
-                        <View
-                          width={12}
-                          height={12}
-                          borderRadius={6}
-                          backgroundColor="#0055D4"
-                          borderWidth={2}
-                          borderColor="#FFFFFF"
-                        />
-                      </YStack>
-
-                      {/* Điểm Đích (Mục tiêu tương lai) */}
-                      <YStack alignItems="center" gap="$1">
-                        <View
-                          width={12}
-                          height={12}
-                          borderRadius={6}
-                          backgroundColor="#FFFFFF"
-                          borderWidth={2.5}
-                          borderColor="#16A34A"
-                        />
-                        <Text fontSize={10.5} fontWeight="800" color="#16A34A">
-                          {targetWeight}kg
-                        </Text>
-                      </YStack>
-                    </XStack>
-
-                    {/* Trục hoành ngày ở dưới cùng */}
-                    <XStack justifyContent="space-between" paddingHorizontal="$2">
-                      <Text fontSize={10} color="#64748B">
-                        Ngày 1
-                      </Text>
-                      <Text fontSize={10} color="#0055D4" fontWeight="800">
-                        Ngày {progressMetrics.daysPassed} (Nay)
-                      </Text>
-                      <Text fontSize={10} color="#16A34A" fontWeight="800">
-                        Ngày {targetDays} (Đích)
-                      </Text>
-                    </XStack>
-                  </View>
-
-                  {/* Chú giải biểu đồ */}
-                  <XStack justifyContent="space-between" paddingHorizontal="$1">
-                    <Text fontSize={10.5} color="#475569">
-                      <Text color="#0055D4" fontWeight="800">▬</Text> Đã theo dõi ({progressMetrics.daysPassed} ngày: {currentWeight} kg)
-                    </Text>
-                    <Text fontSize={10.5} color="#475569">
-                      <Text color="#16A34A" fontWeight="800">╍</Text> Dự báo {progressMetrics.daysRemaining} ngày tới (Mục tiêu {targetWeight} kg)
-                    </Text>
-                  </XStack>
-                </YStack>
-              ) : (
-                /* Chưa có bản ghi nào trong database weight_history */
-                <YStack padding="$3.5" alignItems="center" gap="$1.5">
-                  <Text fontSize={26}>⚖️</Text>
-                  <Text fontSize={12} color="#64748B" textAlign="center">
-                    Chưa có lịch sử cân nặng trong database. Hãy nhập số cân hôm nay bên dưới để bắt đầu vẽ biểu đồ tiến trình thực tế!
-                  </Text>
-                </YStack>
-              )}
-            </>
+              ))}
+            </YStack>
           ) : (
-            <YStack paddingVertical="$2" alignItems="center" gap="$1">
-              <Text fontSize={12} color="#94A3B8" textAlign="center">
-                Chưa có dữ liệu tiến trình. Vui lòng cấu hình mục tiêu cân nặng và số ngày để hiển thị.
+            <YStack padding="$3" alignItems="center" gap="$1.5">
+              <Text fontSize={12} color="#64748B" textAlign="center">
+                Chưa ghi nhận cân nặng.
               </Text>
             </YStack>
           )}
@@ -1186,7 +908,7 @@ export default function GoalScreen() {
         </YStack>
 
         {/* ========================================================================= */}
-        {/* KHỐI 4: CALO NẠP VS TIÊU HAO (7 NGÀY QUA) - TỪ DATABASE DAILY_MEALS THỰC */}
+        {/* KHỐI 4: LƯỢNG CALO ĐÃ GHI NHẬN TRONG 7 NGÀY */}
         {/* ========================================================================= */}
         <YStack
           backgroundColor="#FFFFFF"
@@ -1194,7 +916,7 @@ export default function GoalScreen() {
           padding="$4"
           borderWidth={1}
           borderColor="#E2E8F0"
-          gap="$3"
+          gap="$4"
           style={THEME.shadow}
         >
           {/* Header Calo 7 ngày */}
@@ -1202,21 +924,22 @@ export default function GoalScreen() {
             <YStack gap="$0.5">
               <XStack alignItems="center" gap="$1.5">
                 <Text fontSize={15} fontWeight="900" color="#0F172A">
-                  Calo nạp vs Tiêu hao (7 ngày qua)
+                  Lượng calo đã ghi nhận (7 ngày)
                 </Text>
-                <Text fontSize={14}>ℹ️</Text>
               </XStack>
               <Text fontSize={11.5} color="#64748B">
-                Đường giới hạn đề xuất: <Text fontWeight="800" color="#0055D4">{past7DaysMetrics.targetCal.toLocaleString()} kcal</Text>
+                {past7DaysMetrics.targetCal > 0
+                  ? <>Mục tiêu mỗi ngày: <Text fontWeight="800" color="#0055D4">{past7DaysMetrics.targetCal.toLocaleString()} kcal</Text></>
+                  : 'Chưa có mục tiêu calo để đối chiếu'}
               </Text>
             </YStack>
           </XStack>
 
-          {/* Biểu đồ cột 7 ngày từ T2 đến CN */}
+          {/* Biểu đồ cột 7 ngày */}
           {past7DaysMetrics.loggedDaysCount > 0 ? (
             <YStack gap="$2.5">
               <View
-                height={150}
+                height={210}
                 backgroundColor="#F8FAFC"
                 borderRadius={18}
                 padding="$2.5"
@@ -1224,62 +947,44 @@ export default function GoalScreen() {
                 borderWidth={1}
                 borderColor="#E2E8F0"
               >
-                {/* Đường giới hạn mục tiêu ngang */}
-                <View
-                  position="absolute"
-                  left={10}
-                  right={10}
-                  top={`${Math.max(15, 100 - (past7DaysMetrics.targetCal / past7DaysMetrics.maxCal) * 100)}%`}
-                  height={1}
-                  borderWidth={1}
-                  borderColor="#0055D4"
-                  borderStyle="dashed"
-                  zIndex={2}
-                />
-                <View
-                  position="absolute"
-                  right={12}
-                  top={`${Math.max(10, 95 - (past7DaysMetrics.targetCal / past7DaysMetrics.maxCal) * 100)}%`}
-                  backgroundColor="#0055D4"
-                  paddingHorizontal="$1.5"
-                  paddingVertical="$0.5"
-                  borderRadius={6}
-                  zIndex={3}
-                >
-                  <Text fontSize={8.5} fontWeight="800" color="#FFFFFF">
-                    Mục tiêu
-                  </Text>
-                </View>
-
-                {/* 7 Cột calo ngày */}
+                {/* Cột calo theo từng ngày */}
                 <XStack height="100%" alignItems="flex-end" justifyContent="space-around">
                   {past7DaysMetrics.list.map((item, idx) => {
-                    const isOver = item.calories > past7DaysMetrics.targetCal;
-                    const hPercent = item.hasData
-                      ? Math.min(100, Math.max(15, Math.round((item.calories / past7DaysMetrics.maxCal) * 100)))
-                      : 0;
+                    const isOver =
+                      past7DaysMetrics.targetCal > 0 &&
+                      item.calories > past7DaysMetrics.targetCal;
+                    const barHeight = item.hasData
+                      ? Math.max(
+                          12,
+                          Math.round((item.calories / past7DaysMetrics.maxCal) * 145)
+                        )
+                      : 5;
+                    const barColor = !item.hasData
+                      ? '#E2E8F0'
+                      : past7DaysMetrics.targetCal === 0
+                      ? '#3B82F6'
+                      : isOver
+                      ? '#F97316'
+                      : '#22C55E';
 
                     return (
                       <YStack key={idx} alignItems="center" gap="$1" flex={1}>
-                        {/* Số calo hiển thị trên đầu cột */}
                         <Text
-                          fontSize={9}
+                          fontSize={10}
                           fontWeight="700"
                           color={!item.hasData ? '#CBD5E1' : isOver ? '#EA580C' : '#475569'}
                         >
                           {item.hasData ? item.calories.toLocaleString() : '-'}
                         </Text>
 
-                        {/* Thân cột */}
                         <View
-                          width={26}
-                          height={item.hasData ? `${hPercent}%` : 4}
-                          backgroundColor={!item.hasData ? '#E2E8F0' : isOver ? '#EA580C' : '#16A34A'}
-                          borderRadius={5}
+                          width={30}
+                          height={barHeight}
+                          backgroundColor={barColor}
+                          borderRadius={7}
                         />
 
-                        {/* Tên thứ (T2, T3, ..., CN) */}
-                        <Text fontSize={10} fontWeight="700" color="#64748B">
+                        <Text fontSize={10.5} fontWeight="700" color="#475569">
                           {item.dayLabel}
                         </Text>
                       </YStack>
@@ -1288,10 +993,25 @@ export default function GoalScreen() {
                 </XStack>
               </View>
 
+              {past7DaysMetrics.targetCal > 0 && (
+                <XStack alignItems="center" gap="$3">
+                  <XStack alignItems="center" gap="$1">
+                    <View width={8} height={8} borderRadius={4} backgroundColor="#22C55E" />
+                    <Text fontSize={10} color="#64748B">Trong mục tiêu</Text>
+                  </XStack>
+                  <XStack alignItems="center" gap="$1">
+                    <View width={8} height={8} borderRadius={4} backgroundColor="#F97316" />
+                    <Text fontSize={10} color="#64748B">Vượt mục tiêu</Text>
+                  </XStack>
+                </XStack>
+              )}
+
               {/* Tóm tắt chân biểu đồ */}
               <XStack justifyContent="space-between" paddingHorizontal="$1">
                 <Text fontSize={11} fontWeight="700" color="#16A34A">
-                  ● Đạt thâm hụt: {past7DaysMetrics.daysWithinGoal}/7 ngày
+                  {past7DaysMetrics.targetCal > 0
+                    ? `Trong hạn mức: ${past7DaysMetrics.daysWithinGoal}/${past7DaysMetrics.loggedDaysCount} ngày ghi nhận`
+                    : `Có ghi nhận: ${past7DaysMetrics.loggedDaysCount}/7 ngày`}
                 </Text>
                 <Text fontSize={11} color="#64748B">
                   Trung bình: <Text fontWeight="800" color="#0F172A">~{past7DaysMetrics.avgCal.toLocaleString()} kcal/ngày</Text>
@@ -1303,7 +1023,7 @@ export default function GoalScreen() {
             <YStack padding="$3" alignItems="center" gap="$1.5">
               <Text fontSize={26}>🥗</Text>
               <Text fontSize={12} color="#64748B" textAlign="center">
-                Chưa có nhật ký bữa ăn trong 7 ngày qua. Hãy thêm món ăn trong tab Nhật ký để theo dõi lượng calo nạp thực tế!
+                Chưa có nhật ký calo trong 7 ngày qua.
               </Text>
             </YStack>
           )}
@@ -1420,7 +1140,7 @@ export default function GoalScreen() {
             {/* Nhập Số ngày hoàn thành mục tiêu */}
             <YStack gap="$1.5">
               <Text fontSize={12.5} fontWeight="700" color="#334155">
-                Số ngày hoàn thành (tự nhập):
+                Thời hạn (ngày):
               </Text>
               <XStack alignItems="center" gap="$2">
                 <TouchableOpacity
@@ -1478,11 +1198,37 @@ export default function GoalScreen() {
                 </TouchableOpacity>
               </XStack>
 
-              {/* Tóm tắt quy đổi */}
               <Text fontSize={11} color="#64748B">
-                ~ {((parseInt(inputTargetDays, 10) || 60) / 7).toFixed(1)} tuần (khoảng {((parseInt(inputTargetDays, 10) || 60) / 30).toFixed(1)} tháng)
+                Tương đương ~{((parseInt(inputTargetDays, 10) || 60) / 7).toFixed(1)} tuần
               </Text>
             </YStack>
+
+            {configPreview && (
+              <YStack
+                backgroundColor={requiresScheduleAdjustment(configPreview) ? '#FFF7ED' : '#F0F7FF'}
+                borderColor={requiresScheduleAdjustment(configPreview) ? '#FED7AA' : '#BFDBFE'}
+                borderWidth={1}
+                borderRadius={14}
+                padding="$3"
+                gap="$1.5"
+              >
+                <Text fontSize={12} fontWeight="800" color="#0F172A">
+                  Ước tính: {configPreview.goalType} · {configPreview.ratePerWeek} kg/tuần
+                </Text>
+                <Text fontSize={11.5} color="#334155">
+                  {configPreview.dailyCalorieTarget.toLocaleString()} kcal/ngày · Đạm {configPreview.macros.proteinGrams}g · Carb {configPreview.macros.carbGrams}g · Béo {configPreview.macros.fatGrams}g
+                </Text>
+                {requiresScheduleAdjustment(configPreview) && (
+                  <Text fontSize={11} color="#B45309">
+                    Tốc độ chưa phù hợp. Hãy tăng thời hạn
+                    {configPreview.suggestedTargetDaysMin
+                      ? ` lên ít nhất ${configPreview.suggestedTargetDaysMin} ngày`
+                      : ''}
+                    .
+                  </Text>
+                )}
+              </YStack>
+            )}
 
             {/* Nút bấm Lưu & Kích hoạt mục tiêu */}
             <TouchableOpacity
@@ -1505,7 +1251,7 @@ export default function GoalScreen() {
                     <Text fontSize={15} color="#FFFFFF">✓</Text>
                   )}
                   <Text fontSize={14.5} fontWeight="800" color="#FFFFFF">
-                    {isSavingConfig ? 'Đang lưu...' : 'Lưu & Áp dụng mục tiêu'}
+                    {isSavingConfig ? 'Đang lưu...' : 'Lưu mục tiêu'}
                   </Text>
                 </XStack>
               </View>

@@ -538,11 +538,14 @@ export const addWeightRecord = async (
 
     const { data, error } = await supabase
       .from('weight_history')
-      .insert({
-        user_id: userId,
-        weight: Number(weight),
-        recorded_date: targetDate,
-      })
+      .upsert(
+        {
+          user_id: userId,
+          weight: Number(weight),
+          recorded_date: targetDate,
+        },
+        { onConflict: 'user_id,recorded_date' }
+      )
       .select()
       .single();
 
