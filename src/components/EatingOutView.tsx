@@ -343,29 +343,26 @@ export const EatingOutView: React.FC<EatingOutViewProps> = ({ onSaveMeal, isSavi
       ) : !currentDish ? (
         <YStack
           backgroundColor="#FFFFFF"
-          padding="$7"
+          padding="$6"
           borderRadius={24}
           alignItems="center"
-          gap="$3"
+          gap="$2.5"
           borderWidth={1}
           borderColor="#E2E8F0"
           style={THEME.shadow}
         >
           <View
-            width={72}
-            height={72}
-            borderRadius={36}
+            width={64}
+            height={64}
+            borderRadius={32}
             backgroundColor="#F0F7FF"
             alignItems="center"
             justifyContent="center"
           >
-            <Text fontSize={36}>🍜</Text>
+            <Text fontSize={32}>🍜</Text>
           </View>
-          <Text fontSize={17} fontWeight="800" color="#0F172A">
+          <Text fontSize={16} fontWeight="800" color="#0F172A">
             Chưa chọn món ăn ngoài
-          </Text>
-          <Text fontSize={13.5} color="#64748B" textAlign="center" lineHeight={20} maxWidth={280}>
-            Gõ tên món (Phở, Cơm tấm, Bún bò...) vào thanh tìm kiếm phía trên để chọn món và điều chỉnh khẩu phần.
           </Text>
         </YStack>
       ) : (
