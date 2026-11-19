@@ -11,13 +11,11 @@ import {
 import { TouchableOpacity, Alert, Image } from 'react-native';
 import { THEME } from '../constants/theme';
 import {
-  COOKING_METHODS,
   RawIngredient,
 } from '../data/vietnameseFoodData';
 import { searchRawIngredients } from '../services/foodService';
 import {
   calculateIngredientCookingExtras,
-  IngredientCookingExtras,
 } from '../services/nutritionAIService';
 import { saveUserRecipe } from '../services/supabase';
 import { useAppSelector } from '../store';
@@ -58,7 +56,6 @@ export const HomeCookingView: React.FC<HomeCookingViewProps> = ({ onSaveMeal, is
   const [selectedIngredient, setSelectedIngredient] = useState<RawIngredient | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [inputGrams, setInputGrams] = useState<number>(100);
-  const [inputCookingMethodId, setInputCookingMethodId] = useState<string>('boil_steam');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isSearchFocused, setIsSearchFocused] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -69,31 +66,8 @@ export const HomeCookingView: React.FC<HomeCookingViewProps> = ({ onSaveMeal, is
   const [saveToRecipeBook, setSaveToRecipeBook] = useState<boolean>(false);
   const [recipeName, setRecipeName] = useState<string>('');
 
-  // Danh mục nguyên liệu
-  const ingredientCategories = [
-    { id: 'all', label: 'Tất cả' },
-    { id: 'meat', label: '🥩 Thịt' },
-    { id: 'seafood', label: '🐟 Hải sản' },
-    { id: 'egg_dairy', label: '🥚 Trứng & Sữa' },
-    { id: 'carb', label: '🍚 Tinh bột' },
-    { id: 'veggie', label: '🥦 Rau củ' },
-    { id: 'tofu_bean', label: '🧈 Đậu & Hạt' },
-    { id: 'fat_seasoning', label: '🫒 Dầu & Gia vị' },
-  ];
-
   // Nguyên liệu đang chọn để chuẩn bị thêm vào mâm
   const currentIngredient = selectedIngredient || ingredientsList[0] || null;
-
-  // Tự động gợi ý cách chế biến phù hợp khi người dùng chọn nguyên liệu mới
-  useEffect(() => {
-    if (currentIngredient) {
-      if (currentIngredient.category === 'meat' || currentIngredient.category === 'seafood') {
-        setInputCookingMethodId('stir_fry');
-      } else if (currentIngredient.category === 'veggie' || currentIngredient.category === 'carb') {
-        setInputCookingMethodId('boil_steam');
-      }
-    }
-  }, [currentIngredient?.id]);
 
   // Truy vấn On-Demand từ Supabase Database
   useEffect(() => {
@@ -122,21 +96,6 @@ export const HomeCookingView: React.FC<HomeCookingViewProps> = ({ onSaveMeal, is
       clearTimeout(timer);
     };
   }, [searchQuery, selectedCategory]);
-
-  // Xem trước calo của nguyên liệu đang chuẩn bị thêm
-  const inputPreview = useMemo(() => {
-    if (!currentIngredient || inputGrams <= 0) return null;
-    const factor = inputGrams / 100;
-    const baseCal = Math.round(currentIngredient.caloriesPer100g * factor);
-    const extras = calculateIngredientCookingExtras(inputCookingMethodId, inputGrams);
-    return {
-      baseCal,
-      extraCal: extras.extraCalories,
-      totalCal: baseCal + extras.extraCalories,
-      oilGrams: extras.oilGrams,
-      note: extras.note,
-    };
-  }, [currentIngredient, inputGrams, inputCookingMethodId]);
 
   // Tính toán toàn bộ dinh dưỡng & calo mâm cơm (gộp từng nguyên liệu theo cách chế biến của nó)
   const plateTotals = useMemo(() => {
@@ -217,7 +176,7 @@ export const HomeCookingView: React.FC<HomeCookingViewProps> = ({ onSaveMeal, is
     };
   }, [plateItems]);
 
-  // Thêm nguyên liệu với cách chế biến riêng vào mâm
+  // Thêm nguyên liệu vào mâm (mặc định cách nấu thanh đạm, chọn cách nấu trực tiếp trên thẻ món)
   const handleAddIngredient = () => {
     if (!currentIngredient) {
       Alert.alert('Chưa chọn thực phẩm', 'Vui lòng chọn một nguyên liệu từ danh sách database.');
@@ -232,7 +191,7 @@ export const HomeCookingView: React.FC<HomeCookingViewProps> = ({ onSaveMeal, is
       id: `item_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       ingredient: currentIngredient,
       grams: inputGrams,
-      cookingMethodId: inputCookingMethodId,
+      cookingMethodId: 'boil_steam',
     };
 
     setPlateItems((prev) => [...prev, newItem]);
@@ -339,31 +298,31 @@ export const HomeCookingView: React.FC<HomeCookingViewProps> = ({ onSaveMeal, is
   };
 
   return (
-    <YStack gap="$4">
+    <YStack gap="$5">
       {/* ========================================================================= */}
-      {/* 1. SECTION: CHỌN NGUYÊN LIỆU & CÁCH CHẾ BIẾN BAN ĐẦU */}
+      {/* 1. SECTION: CHỌN VÀ CÂN NGUYÊN LIỆU (GỌN GÀNG, THOÁNG MẮT) */}
       {/* ========================================================================= */}
       <YStack
         backgroundColor="#FFFFFF"
-        padding="$4"
-        borderRadius={22}
+        padding="$4.5"
+        borderRadius={24}
         borderWidth={1}
         borderColor="#E2E8F0"
-        gap="$3.5"
+        gap="$4"
         style={THEME.shadow}
       >
         <XStack justifyContent="space-between" alignItems="center">
-          <Text fontSize={16} fontWeight="800" color="#0F172A">
+          <Text fontSize={16.5} fontWeight="800" color="#0F172A">
             1. Thêm nguyên liệu vào mâm
           </Text>
           <View
             backgroundColor="#EEF2FF"
-            paddingHorizontal="$3"
-            paddingVertical="$1"
-            borderRadius={14}
+            paddingHorizontal="$3.5"
+            paddingVertical="$1.5"
+            borderRadius={16}
           >
-            <Text fontSize={11.5} fontWeight="700" color="#4F46E5">
-              Cân gram & Chọn cách nấu
+            <Text fontSize={12} fontWeight="700" color="#4F46E5">
+              Cân thực phẩm (gam)
             </Text>
           </View>
         </XStack>
@@ -372,20 +331,20 @@ export const HomeCookingView: React.FC<HomeCookingViewProps> = ({ onSaveMeal, is
         <XStack
           alignItems="center"
           backgroundColor="#F8FAFC"
-          borderRadius={14}
+          borderRadius={16}
           borderWidth={1.5}
           borderColor={isSearchFocused ? '#0055D4' : '#E2E8F0'}
-          paddingHorizontal="$3.5"
-          height={48}
+          paddingHorizontal="$4"
+          height={50}
         >
-          <Text fontSize={16} marginRight="$2.5" color="#64748B">
+          <Text fontSize={17} marginRight="$3" color="#64748B">
             🔍
           </Text>
           <Input
             flex={1}
             borderWidth={0}
             backgroundColor="transparent"
-            fontSize={14}
+            fontSize={14.5}
             fontWeight="600"
             color="#0F172A"
             value={searchQuery}
@@ -393,19 +352,19 @@ export const HomeCookingView: React.FC<HomeCookingViewProps> = ({ onSaveMeal, is
             onFocus={() => setIsSearchFocused(true)}
             placeholder="Tìm thịt, cá, rau, trứng, cơm..."
             placeholderTextColor="#94A3B8"
-            height={46}
+            height={48}
           />
           {searchQuery.length > 0 && (
             <TouchableOpacity onPress={() => setSearchQuery('')} activeOpacity={0.7}>
               <View
-                width={22}
-                height={22}
-                borderRadius={11}
+                width={24}
+                height={24}
+                borderRadius={12}
                 backgroundColor="#E2E8F0"
                 alignItems="center"
                 justifyContent="center"
               >
-                <Text fontSize={11} color="#64748B" fontWeight="700">
+                <Text fontSize={11.5} color="#64748B" fontWeight="700">
                   ✕
                 </Text>
               </View>
@@ -417,15 +376,16 @@ export const HomeCookingView: React.FC<HomeCookingViewProps> = ({ onSaveMeal, is
         {(isSearchFocused || searchQuery.trim().length > 0) && (
           <YStack
             backgroundColor="#FFFFFF"
-            borderRadius={14}
+            borderRadius={16}
             borderWidth={1}
             borderColor="#E2E8F0"
-            maxHeight={220}
+            maxHeight={230}
             overflow="hidden"
+            style={THEME.shadow}
           >
             <ScrollView showsVerticalScrollIndicator={true} nestedScrollEnabled={true}>
               {ingredientsList.length === 0 ? (
-                <YStack padding="$3" alignItems="center">
+                <YStack padding="$4" alignItems="center">
                   <Text fontSize={13} color="#94A3B8">
                     Không tìm thấy "{searchQuery}".
                   </Text>
@@ -442,21 +402,21 @@ export const HomeCookingView: React.FC<HomeCookingViewProps> = ({ onSaveMeal, is
                     }}
                   >
                     <XStack
-                      paddingVertical="$2.5"
-                      paddingHorizontal="$3.5"
+                      paddingVertical="$3"
+                      paddingHorizontal="$4"
                       alignItems="center"
                       justifyContent="space-between"
                       borderBottomWidth={idx < ingredientsList.length - 1 ? 1 : 0}
                       borderColor="#F1F5F9"
                       backgroundColor={ing.id === currentIngredient?.id ? '#EFF6FF' : '#FFFFFF'}
                     >
-                      <XStack alignItems="center" gap="$2.5">
-                        <Text fontSize={18}>{ing.icon}</Text>
-                        <YStack>
-                          <Text fontSize={14} fontWeight="700" color="#0F172A">
+                      <XStack alignItems="center" gap="$3">
+                        <Text fontSize={20}>{ing.icon}</Text>
+                        <YStack gap="$0.5">
+                          <Text fontSize={14.5} fontWeight="700" color="#0F172A">
                             {ing.name}
                           </Text>
-                          <Text fontSize={11.5} color="#64748B">
+                          <Text fontSize={12} color="#64748B">
                             {ing.caloriesPer100g} kcal / 100g (P:{ing.proteinPer100g}g • C:{ing.carbsPer100g}g • F:{ing.fatPer100g}g)
                           </Text>
                         </YStack>
@@ -476,59 +436,59 @@ export const HomeCookingView: React.FC<HomeCookingViewProps> = ({ onSaveMeal, is
         {currentIngredient && (
           <XStack
             backgroundColor="#F8FAFC"
-            padding="$3"
-            borderRadius={16}
+            padding="$3.5"
+            borderRadius={18}
             borderWidth={1}
             borderColor="#E2E8F0"
             alignItems="center"
             justifyContent="space-between"
           >
-            <XStack alignItems="center" gap="$2.5" flex={1}>
-              <Text fontSize={24}>{currentIngredient.icon}</Text>
-              <YStack flex={1}>
-                <Text fontSize={14.5} fontWeight="800" color="#0F172A">
+            <XStack alignItems="center" gap="$3" flex={1}>
+              <Text fontSize={26}>{currentIngredient.icon}</Text>
+              <YStack flex={1} gap="$0.5">
+                <Text fontSize={15} fontWeight="800" color="#0F172A">
                   {currentIngredient.name}
                 </Text>
-                <Text fontSize={11.5} color="#64748B">
-                  Định lượng chuẩn: {currentIngredient.caloriesPer100g} kcal / 100g
+                <Text fontSize={12} color="#64748B">
+                  Định lượng: {currentIngredient.caloriesPer100g} kcal / 100g
                 </Text>
               </YStack>
             </XStack>
             <TouchableOpacity activeOpacity={0.7} onPress={() => setIsSearchFocused(true)}>
-              <Text fontSize={12.5} color="#0055D4" fontWeight="700">
+              <Text fontSize={13} color="#0055D4" fontWeight="700">
                 Đổi món
               </Text>
             </TouchableOpacity>
           </XStack>
         )}
 
-        {/* Khối lượng cân (gam) */}
-        <YStack gap="$1.5">
-          <Text fontSize={13} fontWeight="700" color="#475569">
-            Khối lượng cân thực tế:
+        {/* Khối lượng cân (gam) với khoảng cách thoáng đãng */}
+        <YStack gap="$2.5">
+          <Text fontSize={13.5} fontWeight="700" color="#475569">
+            Khối lượng cân:
           </Text>
-          <XStack alignItems="center" gap="$2">
+          <XStack alignItems="center" gap="$2.5">
             <XStack
               flex={1}
               alignItems="center"
               justifyContent="space-between"
               backgroundColor="#F8FAFC"
-              borderRadius={20}
+              borderRadius={22}
               borderWidth={1.5}
               borderColor="#E2E8F0"
-              paddingHorizontal="$3"
-              height={44}
+              paddingHorizontal="$3.5"
+              height={48}
             >
               <TouchableOpacity
                 onPress={() => setInputGrams((prev) => Math.max(10, prev - 10))}
                 activeOpacity={0.6}
               >
-                <Text fontSize={20} fontWeight="700" color="#64748B" paddingHorizontal="$2">
+                <Text fontSize={22} fontWeight="700" color="#64748B" paddingHorizontal="$2.5">
                   -
                 </Text>
               </TouchableOpacity>
 
-              <Text fontSize={16} fontWeight="900" color="#0F172A">
+              <Text fontSize={17} fontWeight="900" color="#0F172A">
                 {inputGrams} gam
               </Text>
 
@@ -536,7 +496,7 @@ export const HomeCookingView: React.FC<HomeCookingViewProps> = ({ onSaveMeal, is
                 onPress={() => setInputGrams((prev) => prev + 10)}
                 activeOpacity={0.6}
               >
-                <Text fontSize={20} fontWeight="700" color="#64748B" paddingHorizontal="$2">
+                <Text fontSize={22} fontWeight="700" color="#64748B" paddingHorizontal="$2.5">
                   +
                 </Text>
               </TouchableOpacity>
@@ -545,112 +505,47 @@ export const HomeCookingView: React.FC<HomeCookingViewProps> = ({ onSaveMeal, is
             <TouchableOpacity activeOpacity={0.7} onPress={() => setInputGrams((prev) => prev + 50)}>
               <View
                 backgroundColor="#F1F5F9"
-                borderRadius={18}
-                paddingHorizontal="$3"
-                paddingVertical="$2"
+                borderRadius={20}
+                paddingHorizontal="$4"
+                paddingVertical="$2.5"
                 borderWidth={1}
                 borderColor="#E2E8F0"
               >
-                <Text fontSize={12} fontWeight="800" color="#0055D4">+50g</Text>
+                <Text fontSize={12.5} fontWeight="800" color="#0055D4">+50g</Text>
               </View>
             </TouchableOpacity>
 
             <TouchableOpacity activeOpacity={0.7} onPress={() => setInputGrams((prev) => prev + 100)}>
               <View
                 backgroundColor="#F1F5F9"
-                borderRadius={18}
-                paddingHorizontal="$3"
-                paddingVertical="$2"
+                borderRadius={20}
+                paddingHorizontal="$4"
+                paddingVertical="$2.5"
                 borderWidth={1}
                 borderColor="#E2E8F0"
               >
-                <Text fontSize={12} fontWeight="800" color="#0055D4">+100g</Text>
+                <Text fontSize={12.5} fontWeight="800" color="#0055D4">+100g</Text>
               </View>
             </TouchableOpacity>
           </XStack>
         </YStack>
 
-        {/* CHỌN CÁCH CHẾ BIẾN CHO NGUYÊN LIỆU NÀY */}
-        <YStack gap="$1.5">
-          <Text fontSize={13} fontWeight="700" color="#475569">
-            Cách chế biến món này:
-          </Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <XStack gap="$2" paddingVertical="$0.5">
-              {AVAILABLE_METHODS.map((method) => {
-                const isSelected = inputCookingMethodId === method.id;
-                return (
-                  <TouchableOpacity
-                    key={method.id}
-                    activeOpacity={0.8}
-                    onPress={() => setInputCookingMethodId(method.id)}
-                  >
-                    <View
-                      paddingHorizontal="$3.5"
-                      paddingVertical="$2"
-                      borderRadius={18}
-                      borderWidth={1.5}
-                      borderColor={isSelected ? '#0055D4' : '#E2E8F0'}
-                      backgroundColor={isSelected ? '#0055D4' : '#F8FAFC'}
-                    >
-                      <XStack alignItems="center" gap="$1.5">
-                        <Text fontSize={13}>{method.icon}</Text>
-                        <Text
-                          fontSize={12.5}
-                          fontWeight={isSelected ? '800' : '600'}
-                          color={isSelected ? '#FFFFFF' : '#334155'}
-                        >
-                          {method.name}
-                        </Text>
-                      </XStack>
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
-            </XStack>
-          </ScrollView>
-        </YStack>
-
-        {/* Preview dự tính calo theo cách chế biến & khối lượng */}
-        {inputPreview && (
-          <XStack
-            backgroundColor="#F0F9FF"
-            padding="$2.5"
-            borderRadius={14}
-            borderWidth={1}
-            borderColor="#BAE6FD"
-            alignItems="center"
-            justifyContent="space-between"
-          >
-            <XStack alignItems="center" gap="$2">
-              <Text fontSize={15}>🔥</Text>
-              <YStack>
-                <Text fontSize={12.5} fontWeight="800" color="#0369A1">
-                  Dự tính: ~{inputPreview.totalCal} kcal ({inputGrams}g)
-                </Text>
-                <Text fontSize={11} color="#0284C7">
-                  Gốc: {inputPreview.baseCal} kcal • {inputPreview.note}
-                </Text>
-              </YStack>
-            </XStack>
-          </XStack>
-        )}
-
         {/* Nút thêm vào mâm */}
         <TouchableOpacity activeOpacity={0.85} onPress={handleAddIngredient}>
           <View
-            height={48}
-            borderRadius={24}
+            height={50}
+            borderRadius={25}
             backgroundColor={currentIngredient ? '#0055D4' : '#94A3B8'}
             alignItems="center"
             justifyContent="center"
+            marginTop="$1"
             style={THEME.shadow}
           >
             <XStack alignItems="center" gap="$2">
               <Text fontSize={16} color="#FFFFFF">
                 ⚡
               </Text>
-              <Text color="#FFFFFF" fontSize={14.5} fontWeight="800">
+              <Text color="#FFFFFF" fontSize={15} fontWeight="800">
                 {currentIngredient
                   ? `Thêm ${currentIngredient.name} (${inputGrams}g) vào mâm`
                   : 'Chọn nguyên liệu để thêm vào mâm'}
@@ -661,26 +556,26 @@ export const HomeCookingView: React.FC<HomeCookingViewProps> = ({ onSaveMeal, is
       </YStack>
 
       {/* ========================================================================= */}
-      {/* 2. SECTION: MÂM ĂN ĐA NGUYÊN LIỆU (TỪNG MÓN CÓ CÁCH CHẾ BIẾN RIÊNG) */}
+      {/* 2. SECTION: MÂM ĂN ĐA NGUYÊN LIỆU (TỪNG MÓN CÓ CÁCH NẤU RIÊNG) */}
       {/* ========================================================================= */}
       <YStack
         backgroundColor="#FFFFFF"
-        padding="$4"
-        borderRadius={22}
+        padding="$4.5"
+        borderRadius={24}
         borderWidth={1}
         borderColor="#E2E8F0"
-        gap="$3.5"
+        gap="$4"
         style={THEME.shadow}
       >
         <XStack justifyContent="space-between" alignItems="center">
-          <Text fontSize={16} fontWeight="800" color="#0F172A">
+          <Text fontSize={16.5} fontWeight="800" color="#0F172A">
             2. Mâm ăn của bạn
           </Text>
           <View
             backgroundColor="#F1F5F9"
-            paddingHorizontal="$3"
-            paddingVertical="$1"
-            borderRadius={12}
+            paddingHorizontal="$3.5"
+            paddingVertical="$1.5"
+            borderRadius={14}
           >
             <Text fontSize={12} fontWeight="700" color="#475569">
               {plateItems.length} món • {plateTotals.totalWeight}g
@@ -689,31 +584,31 @@ export const HomeCookingView: React.FC<HomeCookingViewProps> = ({ onSaveMeal, is
         </XStack>
 
         {plateItems.length === 0 ? (
-          <YStack padding="$5" alignItems="center" justifyContent="center">
-            <Text fontSize={32}>🥗</Text>
-            <Text fontSize={13.5} fontWeight="600" color="#94A3B8" marginTop="$2" textAlign="center">
-              Mâm ăn đang trống. Hãy chọn nguyên liệu và cách nấu ở trên để thêm vào mâm!
+          <YStack padding="$6" alignItems="center" justifyContent="center">
+            <Text fontSize={34}>🥗</Text>
+            <Text fontSize={13.5} fontWeight="600" color="#94A3B8" marginTop="$2.5" textAlign="center">
+              Mâm ăn đang trống. Hãy chọn nguyên liệu và cân gram ở trên để thêm vào mâm!
             </Text>
           </YStack>
         ) : (
-          <YStack gap="$3">
+          <YStack gap="$3.5">
             {plateTotals.itemDetails.map((item) => (
               <YStack
                 key={item.id}
-                padding="$3.5"
+                padding="$4"
                 backgroundColor="#F8FAFC"
-                borderRadius={18}
+                borderRadius={20}
                 borderWidth={1}
                 borderColor="#E2E8F0"
-                gap="$2.5"
+                gap="$3"
               >
                 {/* HÀNG 1: TÊN MÓN, KHỐI LƯỢNG & TỔNG CALO */}
                 <XStack justifyContent="space-between" alignItems="center">
-                  <XStack alignItems="center" gap="$2.5" flex={1}>
+                  <XStack alignItems="center" gap="$3" flex={1}>
                     <View
-                      width={42}
-                      height={42}
-                      borderRadius={12}
+                      width={44}
+                      height={44}
+                      borderRadius={14}
                       backgroundColor="#FFFFFF"
                       alignItems="center"
                       justifyContent="center"
@@ -728,37 +623,37 @@ export const HomeCookingView: React.FC<HomeCookingViewProps> = ({ onSaveMeal, is
                           resizeMode="cover"
                         />
                       ) : (
-                        <Text fontSize={20}>{item.ingredient.icon}</Text>
+                        <Text fontSize={22}>{item.ingredient.icon}</Text>
                       )}
                     </View>
 
-                    <YStack flex={1}>
-                      <Text fontSize={15} fontWeight="800" color="#0F172A">
+                    <YStack flex={1} gap="$0.5">
+                      <Text fontSize={15.5} fontWeight="800" color="#0F172A">
                         {item.ingredient.name}
                       </Text>
-                      <XStack alignItems="center" gap="$2" marginTop="$0.5">
-                        <Text fontSize={12} color="#0055D4" fontWeight="800">
+                      <XStack alignItems="center" gap="$2">
+                        <Text fontSize={12.5} color="#0055D4" fontWeight="800">
                           {item.grams}g
                         </Text>
-                        <Text fontSize={11} color="#64748B">
+                        <Text fontSize={11.5} color="#64748B">
                           (Gốc: {item.bCal} kcal)
                         </Text>
                       </XStack>
                     </YStack>
                   </XStack>
 
-                  {/* Tổng Calo món (đã bao gồm dầu mỡ & gia vị) + Nút Xóa */}
+                  {/* Tổng Calo món (đã tính theo cách chế biến) + Nút Xóa */}
                   <XStack alignItems="center" gap="$3">
-                    <YStack alignItems="flex-end">
-                      <Text fontSize={16} fontWeight="900" color="#0055D4">
+                    <YStack alignItems="flex-end" gap="$0.5">
+                      <Text fontSize={16.5} fontWeight="900" color="#0055D4">
                         {item.totalItemCalories} kcal
                       </Text>
                       {item.extras.extraCalories > 0 ? (
-                        <Text fontSize={10.5} fontWeight="700" color="#EA580C">
+                        <Text fontSize={11} fontWeight="700" color="#EA580C">
                           +{item.extras.extraCalories} kcal dầu
                         </Text>
                       ) : (
-                        <Text fontSize={10.5} fontWeight="600" color="#16A34A">
+                        <Text fontSize={11} fontWeight="600" color="#16A34A">
                           0 kcal dầu
                         </Text>
                       )}
@@ -766,14 +661,14 @@ export const HomeCookingView: React.FC<HomeCookingViewProps> = ({ onSaveMeal, is
 
                     <TouchableOpacity activeOpacity={0.7} onPress={() => handleRemoveItem(item.id)}>
                       <View
-                        width={28}
-                        height={28}
-                        borderRadius={14}
+                        width={30}
+                        height={30}
+                        borderRadius={15}
                         backgroundColor="#FEE2E2"
                         alignItems="center"
                         justifyContent="center"
                       >
-                        <Text fontSize={12} color="#DC2626" fontWeight="900">
+                        <Text fontSize={13} color="#DC2626" fontWeight="900">
                           ✕
                         </Text>
                       </View>
@@ -782,12 +677,12 @@ export const HomeCookingView: React.FC<HomeCookingViewProps> = ({ onSaveMeal, is
                 </XStack>
 
                 {/* HÀNG 2: CHỌN / ĐỔI CÁCH CHẾ BIẾN TRỰC TIẾP TRÊN THẺ */}
-                <YStack gap="$1" paddingTop="$1" borderTopWidth={1} borderColor="#F1F5F9">
-                  <Text fontSize={11.5} fontWeight="700" color="#64748B">
-                    Cách chế biến:
+                <YStack gap="$1.5" paddingTop="$1.5" borderTopWidth={1} borderColor="#F1F5F9">
+                  <Text fontSize={12} fontWeight="700" color="#64748B">
+                    Cách chế biến món này:
                   </Text>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                    <XStack gap="$1.5">
+                    <XStack gap="$2" paddingVertical="$0.5">
                       {AVAILABLE_METHODS.map((method) => {
                         const isSelected = item.cookingMethodId === method.id;
                         return (
@@ -797,17 +692,17 @@ export const HomeCookingView: React.FC<HomeCookingViewProps> = ({ onSaveMeal, is
                             onPress={() => handleChangeItemMethod(item.id, method.id)}
                           >
                             <View
-                              paddingHorizontal="$2.5"
-                              paddingVertical="$1"
-                              borderRadius={12}
+                              paddingHorizontal="$3.5"
+                              paddingVertical="$1.8"
+                              borderRadius={14}
                               backgroundColor={isSelected ? '#0055D4' : '#FFFFFF'}
                               borderWidth={1}
                               borderColor={isSelected ? '#0055D4' : '#CBD5E1'}
                             >
-                              <XStack alignItems="center" gap="$1">
-                                <Text fontSize={11}>{method.icon}</Text>
+                              <XStack alignItems="center" gap="$1.5">
+                                <Text fontSize={12}>{method.icon}</Text>
                                 <Text
-                                  fontSize={11.5}
+                                  fontSize={12}
                                   fontWeight={isSelected ? '800' : '600'}
                                   color={isSelected ? '#FFFFFF' : '#475569'}
                                 >
@@ -827,31 +722,31 @@ export const HomeCookingView: React.FC<HomeCookingViewProps> = ({ onSaveMeal, is
                   justifyContent="space-between"
                   alignItems="center"
                   backgroundColor="#FFFFFF"
-                  paddingHorizontal="$3"
-                  paddingVertical="$2"
-                  borderRadius={12}
+                  paddingHorizontal="$3.5"
+                  paddingVertical="$2.5"
+                  borderRadius={14}
                   borderWidth={1}
                   borderColor="#F1F5F9"
                 >
-                  <Text fontSize={11.5} color="#475569" fontWeight="600" flex={1}>
+                  <Text fontSize={12} color="#475569" fontWeight="600" flex={1}>
                     {item.extras.note}
                   </Text>
 
                   {/* Nút tăng giảm nhanh 50g */}
-                  <XStack alignItems="center" gap="$1.5">
+                  <XStack alignItems="center" gap="$2">
                     <TouchableOpacity
                       activeOpacity={0.7}
                       onPress={() => handleAdjustItemGrams(item.id, -50)}
                     >
                       <View
-                        paddingHorizontal="$2"
-                        paddingVertical="$0.5"
-                        borderRadius={6}
+                        paddingHorizontal="$2.5"
+                        paddingVertical="$1"
+                        borderRadius={8}
                         backgroundColor="#F1F5F9"
                         borderWidth={1}
                         borderColor="#E2E8F0"
                       >
-                        <Text fontSize={11} fontWeight="800" color="#475569">
+                        <Text fontSize={11.5} fontWeight="800" color="#475569">
                           -50g
                         </Text>
                       </View>
@@ -862,14 +757,14 @@ export const HomeCookingView: React.FC<HomeCookingViewProps> = ({ onSaveMeal, is
                       onPress={() => handleAdjustItemGrams(item.id, 50)}
                     >
                       <View
-                        paddingHorizontal="$2"
-                        paddingVertical="$0.5"
-                        borderRadius={6}
+                        paddingHorizontal="$2.5"
+                        paddingVertical="$1"
+                        borderRadius={8}
                         backgroundColor="#EFF6FF"
                         borderWidth={1}
                         borderColor="#BFDBFE"
                       >
-                        <Text fontSize={11} fontWeight="800" color="#0055D4">
+                        <Text fontSize={11.5} fontWeight="800" color="#0055D4">
                           +50g
                         </Text>
                       </View>
@@ -879,7 +774,7 @@ export const HomeCookingView: React.FC<HomeCookingViewProps> = ({ onSaveMeal, is
                       activeOpacity={0.7}
                       onPress={() => handleEditItemGrams(item.id)}
                     >
-                      <Text fontSize={13} color="#64748B" paddingLeft="$1">
+                      <Text fontSize={14} color="#64748B" paddingLeft="$1.5">
                         ✏️
                       </Text>
                     </TouchableOpacity>
@@ -887,14 +782,14 @@ export const HomeCookingView: React.FC<HomeCookingViewProps> = ({ onSaveMeal, is
                 </XStack>
 
                 {/* HÀNG 4: MACROS CỦA MÓN */}
-                <XStack justifyContent="space-between" alignItems="center" paddingHorizontal="$1">
-                  <Text fontSize={11} color="#059669">
+                <XStack justifyContent="space-between" alignItems="center" paddingHorizontal="$1.5">
+                  <Text fontSize={11.5} color="#059669">
                     ● Đạm: <Text fontWeight="800">{item.totalItemProtein}g</Text>
                   </Text>
-                  <Text fontSize={11} color="#EA580C">
+                  <Text fontSize={11.5} color="#EA580C">
                     ● Béo: <Text fontWeight="800">{item.totalItemFat}g</Text>
                   </Text>
-                  <Text fontSize={11} color="#2563EB">
+                  <Text fontSize={11.5} color="#2563EB">
                     ● Carb: <Text fontWeight="800">{item.totalItemCarbs}g</Text>
                   </Text>
                 </XStack>
@@ -907,20 +802,20 @@ export const HomeCookingView: React.FC<HomeCookingViewProps> = ({ onSaveMeal, is
               onPress={() => setIsSearchFocused(true)}
             >
               <View
-                height={42}
-                borderRadius={21}
+                height={46}
+                borderRadius={23}
                 backgroundColor="#EFF6FF"
                 borderWidth={1.5}
                 borderColor="#BFDBFE"
                 alignItems="center"
                 justifyContent="center"
-                marginTop="$1"
+                marginTop="$1.5"
               >
-                <XStack alignItems="center" gap="$1.5">
-                  <Text fontSize={15} color="#0055D4" fontWeight="800">
+                <XStack alignItems="center" gap="$2">
+                  <Text fontSize={16} color="#0055D4" fontWeight="800">
                     ⊕
                   </Text>
-                  <Text fontSize={13} fontWeight="800" color="#0055D4">
+                  <Text fontSize={13.5} fontWeight="800" color="#0055D4">
                     Thêm nguyên liệu tiếp theo vào mâm
                   </Text>
                 </XStack>
@@ -935,11 +830,11 @@ export const HomeCookingView: React.FC<HomeCookingViewProps> = ({ onSaveMeal, is
       {/* ========================================================================= */}
       <YStack
         backgroundColor="#FFFFFF"
-        padding="$4"
-        borderRadius={22}
+        padding="$4.5"
+        borderRadius={24}
         borderWidth={1}
         borderColor="#E2E8F0"
-        gap="$3.5"
+        gap="$4"
         style={THEME.shadow}
       >
         <XStack justifyContent="space-between" alignItems="center">
@@ -947,7 +842,7 @@ export const HomeCookingView: React.FC<HomeCookingViewProps> = ({ onSaveMeal, is
             <Text fontSize={11} color="#64748B" fontWeight="700" letterSpacing={0.5}>
               TỔNG KẾT NĂNG LƯỢNG MÂM CƠM
             </Text>
-            <Text fontSize={16} fontWeight="900" color="#0F172A">
+            <Text fontSize={16.5} fontWeight="900" color="#0F172A">
               Khối lượng & Dinh dưỡng gộp
             </Text>
           </YStack>
@@ -963,42 +858,42 @@ export const HomeCookingView: React.FC<HomeCookingViewProps> = ({ onSaveMeal, is
         {/* THẺ TỔNG HỢP: CALO GỐC VS CALO DẦU MỠ */}
         <YStack
           backgroundColor="#F8FAFC"
-          padding="$3"
-          borderRadius={16}
+          padding="$3.5"
+          borderRadius={18}
           borderWidth={1}
           borderColor="#E2E8F0"
-          gap="$2"
+          gap="$2.5"
         >
           <XStack justifyContent="space-between" alignItems="center">
-            <Text fontSize={12.5} color="#475569" fontWeight="600">
+            <Text fontSize={13} color="#475569" fontWeight="600">
               ⚖️ Tổng trọng lượng mâm ăn:
             </Text>
-            <Text fontSize={14} fontWeight="900" color="#0F172A">
+            <Text fontSize={14.5} fontWeight="900" color="#0F172A">
               {plateTotals.totalWeight} gam
             </Text>
           </XStack>
 
           <XStack justifyContent="space-between" alignItems="center">
-            <Text fontSize={12.5} color="#475569" fontWeight="600">
+            <Text fontSize={13} color="#475569" fontWeight="600">
               🥩 Calo gốc từ thực phẩm:
             </Text>
-            <Text fontSize={13.5} fontWeight="800" color="#334155">
+            <Text fontSize={14} fontWeight="800" color="#334155">
               {plateTotals.baseCalories} kcal
             </Text>
           </XStack>
 
           <XStack justifyContent="space-between" alignItems="center">
-            <Text fontSize={12.5} color="#EA580C" fontWeight="700">
+            <Text fontSize={13} color="#EA580C" fontWeight="700">
               🫒 Dầu ăn & gia vị chế biến:
             </Text>
-            <Text fontSize={13.5} fontWeight="900" color="#EA580C">
+            <Text fontSize={14} fontWeight="900" color="#EA580C">
               +{plateTotals.totalExtraCalories} kcal (~{plateTotals.totalOilGrams}g dầu)
             </Text>
           </XStack>
         </YStack>
 
         {/* 3 THANH PROGRESS BAR CHO MACROS */}
-        <YStack gap="$3" paddingTop="$1">
+        <YStack gap="$3.5" paddingTop="$1">
           {/* 1. Chất đạm (Protein) */}
           <YStack gap="$1.5">
             <XStack justifyContent="space-between" alignItems="center">
@@ -1009,8 +904,8 @@ export const HomeCookingView: React.FC<HomeCookingViewProps> = ({ onSaveMeal, is
                 <Text color="#0F172A" fontWeight="900">{plateTotals.totalProtein}g</Text> ({plateTotals.proteinPercentage}% calo)
               </Text>
             </XStack>
-            <View height={6} backgroundColor="#E2E8F0" borderRadius={3} overflow="hidden">
-              <View width={`${Math.min(100, plateTotals.proteinPercentage * 2.5)}%`} height="100%" backgroundColor="#0055D4" borderRadius={3} />
+            <View height={7} backgroundColor="#E2E8F0" borderRadius={3.5} overflow="hidden">
+              <View width={`${Math.min(100, plateTotals.proteinPercentage * 2.5)}%`} height="100%" backgroundColor="#0055D4" borderRadius={3.5} />
             </View>
           </YStack>
 
@@ -1024,8 +919,8 @@ export const HomeCookingView: React.FC<HomeCookingViewProps> = ({ onSaveMeal, is
                 <Text color="#0F172A" fontWeight="900">{plateTotals.totalCarbs}g</Text> ({plateTotals.carbPercentage}% calo)
               </Text>
             </XStack>
-            <View height={6} backgroundColor="#E2E8F0" borderRadius={3} overflow="hidden">
-              <View width={`${Math.min(100, plateTotals.carbPercentage * 2.5)}%`} height="100%" backgroundColor="#F59E0B" borderRadius={3} />
+            <View height={7} backgroundColor="#E2E8F0" borderRadius={3.5} overflow="hidden">
+              <View width={`${Math.min(100, plateTotals.carbPercentage * 2.5)}%`} height="100%" backgroundColor="#F59E0B" borderRadius={3.5} />
             </View>
           </YStack>
 
@@ -1039,33 +934,33 @@ export const HomeCookingView: React.FC<HomeCookingViewProps> = ({ onSaveMeal, is
                 <Text color="#0F172A" fontWeight="900">{plateTotals.totalFat}g</Text> ({plateTotals.fatPercentage}% calo)
               </Text>
             </XStack>
-            <View height={6} backgroundColor="#E2E8F0" borderRadius={3} overflow="hidden">
-              <View width={`${Math.min(100, plateTotals.fatPercentage * 2.5)}%`} height="100%" backgroundColor="#EA580C" borderRadius={3} />
+            <View height={7} backgroundColor="#E2E8F0" borderRadius={3.5} overflow="hidden">
+              <View width={`${Math.min(100, plateTotals.fatPercentage * 2.5)}%`} height="100%" backgroundColor="#EA580C" borderRadius={3.5} />
             </View>
           </YStack>
         </YStack>
 
         {/* Tên món & Checkbox lưu công thức */}
-        <YStack gap="$2.5" paddingTop="$2.5" borderTopWidth={1} borderColor="#F1F5F9">
-          <XStack alignItems="center" gap="$2.5">
-            <Text fontSize={13} color="#475569" fontWeight="700">
+        <YStack gap="$3" paddingTop="$3" borderTopWidth={1} borderColor="#F1F5F9">
+          <XStack alignItems="center" gap="$3">
+            <Text fontSize={13.5} color="#475569" fontWeight="700">
               🏷️ Tên món:
             </Text>
             <Input
               flex={1}
-              height={40}
+              height={44}
               backgroundColor="#F8FAFC"
-              borderRadius={12}
+              borderRadius={14}
               borderWidth={1}
               borderColor="#E2E8F0"
-              fontSize={13}
+              fontSize={13.5}
               fontWeight="600"
               color="#0F172A"
               value={recipeName}
               onChangeText={setRecipeName}
               placeholder={plateItems.length > 0 ? `Bữa cơm tự nấu (${plateItems.length} món)` : 'Nhập tên mâm ăn...'}
               placeholderTextColor="#94A3B8"
-              paddingHorizontal="$3"
+              paddingHorizontal="$3.5"
             />
           </XStack>
 
@@ -1075,9 +970,9 @@ export const HomeCookingView: React.FC<HomeCookingViewProps> = ({ onSaveMeal, is
           >
             <XStack alignItems="center" gap="$2.5" marginTop="$1">
               <View
-                width={20}
-                height={20}
-                borderRadius={6}
+                width={22}
+                height={22}
+                borderRadius={7}
                 borderWidth={1.5}
                 borderColor={saveToRecipeBook ? '#0055D4' : '#CBD5E1'}
                 backgroundColor={saveToRecipeBook ? '#0055D4' : '#FFFFFF'}
@@ -1085,12 +980,12 @@ export const HomeCookingView: React.FC<HomeCookingViewProps> = ({ onSaveMeal, is
                 justifyContent="center"
               >
                 {saveToRecipeBook && (
-                  <Text color="#FFFFFF" fontSize={12} fontWeight="900" style={{ marginTop: -2 }}>
+                  <Text color="#FFFFFF" fontSize={13} fontWeight="900" style={{ marginTop: -2 }}>
                     ✓
                   </Text>
                 )}
               </View>
-              <Text fontSize={13} color="#0F172A" fontWeight="600" flex={1}>
+              <Text fontSize={13.5} color="#0F172A" fontWeight="600" flex={1}>
                 Lưu công thức vào Sổ tay công thức (Database)
               </Text>
               <Text fontSize={16}>📖</Text>
@@ -1110,8 +1005,8 @@ export const HomeCookingView: React.FC<HomeCookingViewProps> = ({ onSaveMeal, is
           disabled={isSaving}
         >
           <View
-            height={52}
-            borderRadius={26}
+            height={54}
+            borderRadius={27}
             backgroundColor="#0055D4"
             alignItems="center"
             justifyContent="center"
@@ -1121,7 +1016,7 @@ export const HomeCookingView: React.FC<HomeCookingViewProps> = ({ onSaveMeal, is
               <Text fontSize={16} color="#FFFFFF">
                 ✓
               </Text>
-              <Text color="#FFFFFF" fontSize={15} fontWeight="800">
+              <Text color="#FFFFFF" fontSize={15.5} fontWeight="800">
                 {isSaving ? 'Đang lưu...' : `Lưu bữa tự nấu (~${plateTotals.totalCalories} kcal)`}
               </Text>
             </XStack>
