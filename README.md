@@ -29,10 +29,14 @@ npm install
 ### Bước 1: Khởi tạo Cơ sở dữ liệu (Supabase / PostgreSQL)
 Dự án sử dụng Supabase làm Backend-as-a-Service. Vui lòng thiết lập CSDL theo các script SQL được cung cấp sẵn:
 1. Đăng nhập Supabase và tạo Project mới.
-2. Mở SQL Editor và chạy toàn bộ mã trong file `database/schema.sql` (File này bao gồm các bảng: profiles, weight_history, foods, daily_meals và các Trigger tự động, Policy RLS).
-3. *(Tùy chọn)* Chạy file `database/seed.sql` để nạp dữ liệu từ điển các món ăn mẫu (Phở, Cơm tấm, Gạo lứt...) và dữ liệu test.
+2. Mở SQL Editor và chạy toàn bộ mã trong file `database/database` để tạo bảng, policy và dữ liệu món ăn cơ bản.
 
-### Bước 2: Cấu hình biến môi trường (.env)
+### Bước 2: Nạp dữ liệu mẫu để kiểm tra biểu đồ
+1. Tạo tài khoản `test@gmail.com` trong ứng dụng nếu tài khoản này chưa tồn tại.
+2. Mở SQL Editor và chạy `database/seed.sql`. Script tạo 14 ngày lịch sử cân nặng, nhật ký 4 bữa/ngày trong 7 ngày gần nhất và hồ sơ mục tiêu mẫu.
+3. Nếu dùng tài khoản khác, sửa `v_demo_email` trong script trước khi chạy. Nên dùng tài khoản test riêng vì hồ sơ của tài khoản được chọn sẽ được cập nhật theo dữ liệu demo. Chỉ các bản ghi mẫu có marker `nutrition_demo_seed_v1` được thay thế khi chạy lại; dữ liệu khác được giữ nguyên.
+
+### Bước 3: Cấu hình biến môi trường (.env)
 Tạo một file `.env` ở thư mục gốc của dự án (cùng cấp với `package.json`) và điền thông tin kết nối Supabase của bạn:
 
 ```env
@@ -41,7 +45,7 @@ EXPO_PUBLIC_SUPABASE_URL=https://<your-project-id>.supabase.co
 EXPO_PUBLIC_SUPABASE_ANON_KEY=<your-anon-key>
 ```
 
-### Bước 3: Chạy ứng dụng trên thiết bị thật
+### Bước 4: Chạy ứng dụng trên thiết bị thật
 
 ```bash
 # Khởi động Expo Server

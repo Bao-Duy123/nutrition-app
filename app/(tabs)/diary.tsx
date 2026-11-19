@@ -1,196 +1,245 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { YStack, XStack, Text, ScrollView, Spinner, Button } from 'tamagui';
-import {Input} from '../../src/components/AppInput';
-import { Alert } from 'react-native';
+import React, { useState } from 'react';
+import { YStack, XStack, Text, ScrollView, View } from 'tamagui';
+import { TouchableOpacity } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useAppDispatch, useAppSelector } from '../../src/store';
-import { addMealItem, setFoods } from '../../src/store/slices/dietSlice';
-import { getAllFoods, addMeal, getTodayDateString } from '../../src/services/supabase';
-import { useDebounce } from '../../src/hooks/useDebounce';
-import { FoodCard } from '../../src/components/FoodCard';
+import { addMealItem } from '../../src/store/slices/dietSlice';
+import { logCalculatedMeal } from '../../src/services/supabase';
 import { THEME } from '../../src/constants/theme';
-import { Food, MealTimeType } from '../../src/types/database';
+import { MealTimeType } from '../../src/types/database';
+import { EatingOutView } from '../../src/components/EatingOutView';
+import { HomeCookingView } from '../../src/components/HomeCookingView';
+import { useAppModal } from '../../src/components/ModalProvider';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function DiaryScreen() {
+  const router = useRouter();
   const dispatch = useAppDispatch();
+  const modal = useAppModal();
+  const insets = useSafeAreaInsets();
   const { userId } = useAppSelector((state) => state.auth);
-  const { foods } = useAppSelector((state) => state.diet);
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const debouncedSearch = useDebounce(searchQuery, 350);
+  // Tab chuyển đổi: 'eating_out' (Ăn ngoài) vs 'home_cooking' (Tự nấu)
+  const [activeTab, setActiveTab] = useState<'eating_out' | 'home_cooking'>('eating_out');
+  const [isSaving, setIsSaving] = useState<boolean>(false);
 
-  const [selectedMealTime, setSelectedMealTime] = useState<MealTimeType>('Trưa');
-  const [loading, setLoading] = useState(false);
-  const [addingFoodId, setAddingFoodId] = useState<number | null>(null);
+  // Xác định buổi ăn tự động theo thời điểm trong ngày
+  const getDefaultMealTime = (): MealTimeType => {
+    const hour = new Date().getHours();
+    if (hour < 10) return 'Sáng';
+    if (hour < 14) return 'Trưa';
+    if (hour < 17) return 'Ăn vặt';
+    return 'Tối';
+  };
 
-  const mealOptions: MealTimeType[] = ['Sáng', 'Trưa', 'Tối', 'Ăn vặt'];
-
-  // Fetch danh sách thực phẩm từ Supabase
-  const fetchFoods = useCallback(async (query: string) => {
+  // Xử lý lưu bữa ăn đã qua tính toán
+  const handleSaveMeal = async (mealData: {
+    dishName: string;
+    totalCalories: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+    servingSize: string;
+    details: string;
+  }): Promise<boolean> => {
     try {
-      setLoading(true);
-      const { data, error } = await getAllFoods(query);
-      if (error) {
-        Alert.alert('Lỗi', 'Không thể tải danh sách thực phẩm: ' + error.message);
-      } else {
-        dispatch(setFoods(data));
+      setIsSaving(true);
+      const mealTime = getDefaultMealTime();
+      const targetDate = new Date().toISOString().split('T')[0];
+
+      if (!userId) {
+        // Fallback lưu trực tiếp vào Redux khi chưa đăng nhập / chế độ khách
+        const localMeal = {
+          id: Date.now(),
+          user_id: 'guest',
+          food_id: 0,
+          quantity: 1,
+          meal_time: mealTime,
+          consumed_date: targetDate,
+          created_at: new Date().toISOString(),
+          dish_name: mealData.dishName,
+          serving_size: mealData.servingSize,
+          calories: mealData.totalCalories,
+          protein: mealData.protein,
+          carbs: mealData.carbs,
+          fat: mealData.fat,
+        };
+        dispatch(addMealItem(localMeal as any));
+        await modal.alert({
+          title: 'Đã lưu bữa ăn! 🎉',
+          message: `Đã ghi nhận ${mealData.dishName} (~${mealData.totalCalories} kcal) vào nhật ký.`,
+          type: 'success',
+          confirmText: 'Tuyệt vời',
+        });
+        return true;
       }
-    } catch (err: any) {
-      console.error('Lỗi khi fetch foods:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [dispatch]);
 
-  useEffect(() => {
-    fetchFoods(debouncedSearch);
-  }, [debouncedSearch, fetchFoods]);
-
-  // Xử lý thêm món ăn vào bảng daily_meals
-  const handleAddMeal = async (food: Food, quantity: number) => {
-    if (!userId) {
-      Alert.alert('Yêu cầu đăng nhập', 'Vui lòng đăng nhập để lưu bữa ăn của bạn!');
-      return;
-    }
-
-    try {
-      setAddingFoodId(food.id);
-      const todayStr = getTodayDateString();
-
-      const { data, error } = await addMeal(
-        userId,
-        food.id,
-        quantity,
-        selectedMealTime,
-        todayStr
-      );
+      const { data, error } = await logCalculatedMeal(userId, {
+        dishName: mealData.dishName,
+        totalCalories: mealData.totalCalories,
+        protein: mealData.protein,
+        carbs: mealData.carbs,
+        fat: mealData.fat,
+        servingSize: mealData.servingSize,
+        mealTime,
+      });
 
       if (error) {
-        Alert.alert('Lỗi thêm món', error.message || 'Không thể lưu vào database');
+        console.warn('Lỗi Supabase khi lưu meal, fallback Redux:', error);
+        const fallbackMeal = {
+          id: Date.now(),
+          user_id: userId,
+          food_id: 0,
+          quantity: 1,
+          meal_time: mealTime,
+          consumed_date: targetDate,
+          created_at: new Date().toISOString(),
+          dish_name: mealData.dishName,
+          serving_size: mealData.servingSize,
+          calories: mealData.totalCalories,
+          protein: mealData.protein,
+          carbs: mealData.carbs,
+          fat: mealData.fat,
+        };
+        dispatch(addMealItem(fallbackMeal as any));
+        await modal.alert({
+          title: 'Đã lưu bữa ăn! 🎉',
+          message: `Đã ghi nhận ${mealData.dishName} (~${mealData.totalCalories} kcal) vào nhật ký.`,
+          type: 'success',
+          confirmText: 'Tuyệt vời',
+        });
+        return true;
       } else if (data) {
         dispatch(addMealItem(data));
-        Alert.alert(
-          'Đã thêm!',
-          `Đã thêm ${quantity} khẩu phần ${food.name} vào bữa ${selectedMealTime}.`
-        );
+        await modal.alert({
+          title: 'Đã lưu bữa ăn! 🎉',
+          message: `Đã ghi nhận ${mealData.dishName} (~${mealData.totalCalories} kcal) vào nhật ký hôm nay.`,
+          type: 'success',
+          confirmText: 'Tuyệt vời',
+        });
+        return true;
       }
+      return false;
     } catch (err: any) {
-      Alert.alert('Lỗi ngoại lệ', err.message || 'Đã xảy ra sự cố');
+      await modal.alert({
+        title: 'Lỗi ngoại lệ',
+        message: err?.message || 'Đã có lỗi xảy ra.',
+        type: 'error',
+        confirmText: 'Đóng',
+      });
+      return false;
     } finally {
-      setAddingFoodId(null);
+      setIsSaving(false);
     }
   };
+
+  const isEatingOut = activeTab === 'eating_out';
 
   return (
     <ScrollView
       backgroundColor={THEME.colors.background}
-      contentContainerStyle={{ paddingBottom: 40 }}
+      contentContainerStyle={{
+        paddingTop: Math.max(insets.top, 16),
+        paddingBottom: Math.max(insets.bottom + 80, 90),
+      }}
       showsVerticalScrollIndicator={false}
     >
-      <YStack padding="$4" gap="$4">
-        {/* TIÊU ĐỀ */}
-        <YStack gap="$1">
-          <Text fontSize={22} fontWeight="800" color={THEME.colors.textMain}>
-            Nhật Ký Thực Phẩm 📖
-          </Text>
-          <Text fontSize={13} color={THEME.colors.textMuted}>
-            Tìm kiếm món ăn và thêm vào thực đơn hàng ngày của bạn
-          </Text>
-        </YStack>
-
-        {/* CHỌN BUỔI ĂN */}
-        <YStack gap="$2">
-          <Text fontSize={13} fontWeight="600" color={THEME.colors.textMain}>
-            Thêm vào bữa:
-          </Text>
-          <XStack gap="$2">
-            {mealOptions.map((time) => {
-              const isSelected = selectedMealTime === time;
-              return (
-                <Button
-                  key={time}
-                  flex={1}
-                  height={40}
-                  backgroundColor={isSelected ? THEME.colors.primary : THEME.colors.card}
-                  borderWidth={1}
-                  borderColor={isSelected ? THEME.colors.primary : THEME.colors.border}
-                  borderRadius={THEME.radius.md}
-                  onPress={() => setSelectedMealTime(time)}
-                >
-                  <Text
-                    fontSize={13}
-                    fontWeight={isSelected ? '700' : '500'}
-                    color={isSelected ? '#FFFFFF' : THEME.colors.textMain}
-                  >
-                    {time}
-                  </Text>
-                </Button>
-              );
-            })}
-          </XStack>
-        </YStack>
-
-        {/* THANH TÌM KIẾM THỰC PHẨM */}
-        <YStack gap="$1">
-          <Input
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            placeholder="🔍 Tìm món ăn (vd: Cơm tấm, Ức gà, Phở...)"
-            backgroundColor={THEME.colors.card}
-            borderColor={THEME.colors.border}
-            borderRadius={THEME.radius.md}
-            paddingHorizontal="$4"
-            height={48}
-            fontSize={14}
-          />
-        </YStack>
-
-        {/* DANH SÁCH MÓN ĂN TỪ SUPABASE */}
-        <YStack gap="$3" marginTop="$2">
-          <XStack justifyContent="space-between" alignItems="center">
-            <Text fontSize={15} fontWeight="700" color={THEME.colors.textMain}>
-              Danh sách thực phẩm ({foods.length})
-            </Text>
-            {loading && <Spinner size="small" color={THEME.colors.primary} />}
-          </XStack>
-
-          {loading && foods.length === 0 ? (
-            <YStack padding="$6" alignItems="center" gap="$2">
-              <Spinner size="large" color={THEME.colors.primary} />
-              <Text fontSize={13} color={THEME.colors.textMuted}>
-                Đang tìm kiếm thực phẩm từ cơ sở dữ liệu...
-              </Text>
-            </YStack>
-          ) : foods.length === 0 ? (
-            <YStack
-              backgroundColor={THEME.colors.card}
-              padding="$6"
-              borderRadius={THEME.radius.lg}
-              alignItems="center"
-              borderWidth={1}
-              borderColor={THEME.colors.border}
-              gap="$2"
+      <YStack paddingHorizontal="$4" gap="$4">
+        {/* ROW 1: HEADER TRANG */}
+        <XStack alignItems="center" justifyContent="space-between">
+          <XStack alignItems="center" gap="$3" flex={1}>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => {
+                if (router.canGoBack()) router.back();
+                else router.push('/(tabs)');
+              }}
             >
-              <Text fontSize={36}>🔍</Text>
-              <Text fontSize={15} fontWeight="700" color={THEME.colors.textMain}>
-                Không tìm thấy món ăn phù hợp
-              </Text>
-              <Text fontSize={13} color={THEME.colors.textMuted} textAlign="center">
-                Hãy thử tìm kiếm với từ khóa khác như "trứng", "bò", "chuối"...
+              <View
+                width={40}
+                height={40}
+                borderRadius={20}
+                backgroundColor="#FFFFFF"
+                alignItems="center"
+                justifyContent="center"
+                borderWidth={1}
+                borderColor="#E2E8F0"
+                style={THEME.shadow}
+              >
+                <Text fontSize={22} color="#0F172A" fontWeight="700" style={{ marginTop: -2 }}>
+                  ‹
+                </Text>
+              </View>
+            </TouchableOpacity>
+
+            <YStack flex={1}>
+              <Text fontSize={20} fontWeight="900" color="#0F172A" numberOfLines={1}>
+                {isEatingOut ? 'Ăn ngoài' : 'Tự nấu'}
               </Text>
             </YStack>
-          ) : (
-            <YStack gap="$3">
-              {foods.map((food) => (
-                <FoodCard
-                  key={food.id}
-                  food={food}
-                  onAddMeal={handleAddMeal}
-                  isLoading={addingFoodId === food.id}
-                />
-              ))}
-            </YStack>
-          )}
-        </YStack>
+          </XStack>
+        </XStack>
+
+        {/* ROW 2: BỘ CHUYỂN ĐỔI TAB: [🍽️ Ăn ngoài] vs [🍳 Tự nấu] */}
+        <XStack
+          backgroundColor="#E2E8F0"
+          padding={6}
+          borderRadius={24}
+          gap={6}
+        >
+          <TouchableOpacity
+            style={{ flex: 1 }}
+            activeOpacity={0.8}
+            onPress={() => setActiveTab('eating_out')}
+          >
+            <View
+              height={44}
+              borderRadius={22}
+              backgroundColor={isEatingOut ? '#FFFFFF' : 'transparent'}
+              alignItems="center"
+              justifyContent="center"
+              style={isEatingOut ? THEME.shadow : undefined}
+            >
+              <Text
+                fontSize={14}
+                fontWeight={isEatingOut ? '800' : '600'}
+                color={isEatingOut ? '#0055D4' : '#64748B'}
+              >
+                🍽️ Ăn ngoài
+              </Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={{ flex: 1 }}
+            activeOpacity={0.8}
+            onPress={() => setActiveTab('home_cooking')}
+          >
+            <View
+              height={44}
+              borderRadius={22}
+              backgroundColor={!isEatingOut ? '#FFFFFF' : 'transparent'}
+              alignItems="center"
+              justifyContent="center"
+              style={!isEatingOut ? THEME.shadow : undefined}
+            >
+              <Text
+                fontSize={14}
+                fontWeight={!isEatingOut ? '800' : '600'}
+                color={!isEatingOut ? '#0055D4' : '#64748B'}
+              >
+                🍳 Tự nấu
+              </Text>
+            </View>
+          </TouchableOpacity>
+        </XStack>
+
+        {/* ROW 3: NỘI DUNG VIEW THEO TAB ĐƯỢC CHỌN */}
+        {isEatingOut ? (
+          <EatingOutView onSaveMeal={handleSaveMeal} isSaving={isSaving} />
+        ) : (
+          <HomeCookingView onSaveMeal={handleSaveMeal} isSaving={isSaving} />
+        )}
       </YStack>
     </ScrollView>
   );

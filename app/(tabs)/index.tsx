@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect } from 'react';
-import { Alert } from 'react-native';
-import { useRouter } from 'expo-router';
+import { Alert, Image, TouchableOpacity } from 'react-native';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Button, ScrollView, Spinner, Text, View, XStack, YStack } from 'tamagui';
 import { MacroRing } from '../../src/components/MacroRing';
 import { THEME } from '../../src/constants/theme';
@@ -46,17 +46,33 @@ export default function HomeScreen() {
     dispatch(setDietLoading(false));
   }, [dispatch, today, userId]);
 
-  useEffect(() => {
-    fetchDailyData();
-  }, [fetchDailyData]);
+  // Luôn làm mới dữ liệu khi người dùng chuyển tab quay lại Trang Chủ
+  useFocusEffect(
+    useCallback(() => {
+      fetchDailyData();
+    }, [fetchDailyData])
+  );
 
-  const handleDeleteMeal = async (mealId: number) => {
-    const result = await deleteMeal(mealId);
-    if (result.success) {
-      dispatch(removeMealItem(mealId));
-    } else {
-      Alert.alert('Không thể xóa món ăn', result.error?.message || 'Vui lòng thử lại.');
-    }
+  const handleDeleteMeal = (mealId: number, dishName: string) => {
+    Alert.alert(
+      'Xóa món ăn',
+      `Bạn có chắc chắn muốn xóa "${dishName}" khỏi nhật ký hôm nay không?`,
+      [
+        { text: 'Hủy', style: 'cancel' },
+        {
+          text: 'Xóa',
+          style: 'destructive',
+          onPress: async () => {
+            const result = await deleteMeal(mealId);
+            if (result.success) {
+              dispatch(removeMealItem(mealId));
+            } else {
+              Alert.alert('Không thể xóa món ăn', result.error?.message || 'Vui lòng thử lại.');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const greetingName = profile?.full_name?.trim().split(/\s+/).slice(-1)[0];
@@ -190,47 +206,72 @@ export default function HomeScreen() {
           </YStack>
         ) : (
           <YStack gap="$2">
-            {todayMeals.map((meal: DailyMeal) => (
-              <XStack
-                key={meal.id}
-                backgroundColor={THEME.colors.card}
-                borderRadius={24}
-                padding="$3"
-                alignItems="center"
-                gap="$3"
-              >
-                <View
-                  width={54}
-                  height={54}
-                  borderRadius={15}
-                  backgroundColor={THEME.colors.primaryLight}
+            {todayMeals.map((meal: DailyMeal) => {
+              const dishName = meal.foods?.name || meal.dish_name || 'Món ăn';
+              const servingText = meal.foods?.serving_size || meal.serving_size || meal.meal_time;
+              const caloriesValue = Math.round(
+                Number(meal.foods?.calories || meal.calories || 0) * Number(meal.quantity || 1)
+              );
+              const imageUrl = meal.foods?.image_url || meal.image_url;
+              const iconEmoji = meal.foods?.icon || '🍲';
+
+              return (
+                <XStack
+                  key={meal.id}
+                  backgroundColor={THEME.colors.card}
+                  borderRadius={24}
+                  padding="$3"
                   alignItems="center"
-                  justifyContent="center"
+                  gap="$3"
                 >
-                  <Text fontSize={25}>🥗</Text>
-                </View>
-                <YStack flex={1} gap="$1">
-                  <Text fontSize={15} fontWeight="700" color={THEME.colors.textMain} numberOfLines={1}>
-                    {meal.foods?.name || 'Món ăn'}
-                  </Text>
-                  <Text fontSize={12} color={THEME.colors.textMuted}>
-                    {meal.quantity} khẩu phần · {meal.foods?.serving_size || meal.meal_time}
-                  </Text>
-                  <Text fontSize={12} color={THEME.colors.calories} fontWeight="700">
-                    {Math.round(Number(meal.foods?.calories || 0) * Number(meal.quantity || 1))} kcal
-                  </Text>
-                </YStack>
-                <Button
-                  circular
-                  width={36}
-                  height={36}
-                  backgroundColor={THEME.colors.background}
-                  onPress={() => handleDeleteMeal(meal.id)}
-                >
-                  <Text fontSize={15} color={THEME.colors.textMuted}>›</Text>
-                </Button>
-              </XStack>
-            ))}
+                  <View
+                    width={54}
+                    height={54}
+                    borderRadius={15}
+                    backgroundColor={THEME.colors.primaryLight}
+                    overflow="hidden"
+                    alignItems="center"
+                    justifyContent="center"
+                  >
+                    {imageUrl ? (
+                      <Image
+                        source={{ uri: imageUrl }}
+                        style={{ width: '100%', height: '100%', borderRadius: 15 }}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <Text fontSize={25}>{iconEmoji}</Text>
+                    )}
+                  </View>
+                  <YStack flex={1} gap="$1">
+                    <Text fontSize={15} fontWeight="700" color={THEME.colors.textMain} numberOfLines={1}>
+                      {dishName}
+                    </Text>
+                    <Text fontSize={12} color={THEME.colors.textMuted}>
+                      {meal.quantity} khẩu phần · {servingText}
+                    </Text>
+                    <Text fontSize={12} color={THEME.colors.calories} fontWeight="700">
+                      {caloriesValue} kcal
+                    </Text>
+                  </YStack>
+                  <TouchableOpacity
+                    activeOpacity={0.7}
+                    onPress={() => handleDeleteMeal(meal.id, dishName)}
+                  >
+                    <View
+                      width={36}
+                      height={36}
+                      borderRadius={18}
+                      backgroundColor="#FEE2E2"
+                      alignItems="center"
+                      justifyContent="center"
+                    >
+                      <Text fontSize={14} color="#EF4444">🗑️</Text>
+                    </View>
+                  </TouchableOpacity>
+                </XStack>
+              );
+            })}
           </YStack>
         )}
 
