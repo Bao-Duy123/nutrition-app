@@ -3,16 +3,16 @@ import { useRouter } from 'expo-router';
 import { YStack, Text, Spinner } from 'tamagui';
 import { useAuth } from '../src/hooks/useAuth';
 import { THEME } from '../src/constants/theme';
-import { isProfileOnboarded } from '../src/utils/validation';
+import { isUserOnboarded } from '../src/utils/validation';
 
 export default function InitialScreen() {
   const router = useRouter();
-  const { isAuthenticated, isLoading, profile } = useAuth();
+  const { isAuthenticated, isLoading, profile, session } = useAuth();
 
   useEffect(() => {
     if (!isLoading) {
       if (isAuthenticated) {
-        if (isProfileOnboarded(profile)) {
+        if (isUserOnboarded(profile, session?.user)) {
           router.replace('/(tabs)');
         } else {
           router.replace('/onboarding');

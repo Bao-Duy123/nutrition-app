@@ -19,7 +19,7 @@ import { setProfile, setSession, clearAuth } from '../src/store/slices/authSlice
 import { setDailyCalorieGoal } from '../src/store/slices/dietSlice';
 import { calculateBMR, calculateSuggestedCalorie, calculateTDEE } from '../src/utils/calculateMacro';
 import { useAppModal } from '../src/components/ModalProvider';
-import { isProfileOnboarded } from '../src/utils/validation';
+import { isUserOnboarded } from '../src/utils/validation';
 
 export default function OnboardingScreen() {
   const router = useRouter();
@@ -58,7 +58,7 @@ export default function OnboardingScreen() {
     if (profile?.goal_type) setGoalType(profile.goal_type);
 
     // Nếu người dùng đã hoàn thành onboarding rồi thì vào thẳng Dashboard
-    if (isProfileOnboarded(profile)) {
+    if (isUserOnboarded(profile, session?.user)) {
       router.replace('/(tabs)');
     }
   }, [profile, session, router]);
@@ -136,6 +136,31 @@ export default function OnboardingScreen() {
           type: 'error',
           title: 'Lưu thông tin thất bại',
           message: `${detail}\n\nVui lòng thử lại.`,
+        });
+        return;
+      }
+
+      // Lưu marker để Google user không bị đưa lại onboarding sau khi mở app lần sau.
+      const { error: metadataError } = await supabase.auth.updateUser({
+        data: {
+          app_profile: {
+            full_name: trimmedName,
+            gender,
+            age: parsedAge,
+            height: parsedHeight,
+            current_weight: parsedWeight,
+            target_weight: parsedTargetWeight,
+            goal_type: goalType,
+            daily_calorie_goal: dailyCalorieGoal,
+          },
+          onboarding_completed: true,
+        },
+      });
+      if (metadataError) {
+        void modal.alert({
+          type: 'error',
+          title: 'Chưa hoàn tất thiết lập',
+          message: `Đã lưu hồ sơ nhưng chưa thể lưu trạng thái onboarding. Vui lòng thử lại.\n\n${formatSupabaseError(metadataError)}`,
         });
         return;
       }

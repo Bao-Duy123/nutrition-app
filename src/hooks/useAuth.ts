@@ -33,9 +33,9 @@ export const useAuth = () => {
     };
 
     const initAuth = async () => {
+      const eventVersionAtStart = authEventVersion;
       try {
         dispatch(setAuthLoading(true));
-        const eventVersionAtStart = authEventVersion;
         const { data: { session: currentSession }, error } = await supabase.auth.getSession();
         if (error) {
           logSupabaseError('auth.getSession', error);
@@ -48,6 +48,8 @@ export const useAuth = () => {
         if (isMounted && eventVersionAtStart === authEventVersion) {
           dispatch(setSession(currentSession));
           if (currentSession?.user) {
+            // Giữ màn khởi động chờ profile; setSession hiện tại kết thúc loading quá sớm.
+            dispatch(setAuthLoading(true));
             const version = ++profileLoadVersion;
             await loadProfile(currentSession.user, version);
           }
@@ -55,7 +57,10 @@ export const useAuth = () => {
       } catch (err) {
         logUnexpectedError('auth.initialize', err);
       } finally {
-        if (isMounted) dispatch(setAuthLoading(false));
+        // Không kết thúc loading nếu INITIAL_SESSION đã tạo một lượt restore mới.
+        if (isMounted && eventVersionAtStart === authEventVersion) {
+          dispatch(setAuthLoading(false));
+        }
       }
     };
 
@@ -66,13 +71,22 @@ export const useAuth = () => {
       authEventVersion += 1;
       dispatch(setSession(newSession));
       if (newSession?.user) {
+        // Chờ loadProfile hoàn tất trước khi app/index quyết định route.
+        dispatch(setAuthLoading(true));
         dispatch(setProfile(null));
         const version = ++profileLoadVersion;
         setTimeout(() => {
-          if (isMounted) void loadProfile(newSession.user, version);
+          if (isMounted) {
+            void loadProfile(newSession.user, version).finally(() => {
+              if (isMounted && version === profileLoadVersion) {
+                dispatch(setAuthLoading(false));
+              }
+            });
+          }
         }, 0);
       } else {
         profileLoadVersion += 1;
+        dispatch(setAuthLoading(false));
         dispatch(clearAuth());
         dispatch(setDailyCalorieGoal(CONFIG.DEFAULT_DAILY_CALORIE_GOAL));
       }

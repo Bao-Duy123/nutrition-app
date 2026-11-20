@@ -14,6 +14,7 @@ import { THEME } from '../src/constants/theme';
 import {
   ensureUserProfile,
   formatSupabaseError,
+  isInvalidCredentialsError,
   logSupabaseError,
   logUnexpectedError,
   supabase,
@@ -24,7 +25,7 @@ import { setDailyCalorieGoal } from '../src/store/slices/dietSlice';
 import { useAppModal } from '../src/components/ModalProvider';
 import { ForgotPasswordModal } from '../src/components/ForgotPasswordModal';
 import GeminiTestBox from "../src/components/GeminiTestBox";
-import { isProfileOnboarded } from '../src/utils/validation';
+import { isUserOnboarded } from '../src/utils/validation';
 
 
 WebBrowser.maybeCompleteAuthSession();
@@ -86,7 +87,7 @@ export default function LoginScreen() {
     }
 
     // Kiểm tra xem người dùng đã hoàn thành onboarding / nhập thông số sức khỏe chưa
-    if (isProfileOnboarded(profile)) {
+    if (isUserOnboarded(profile, session.user)) {
       router.replace('/(tabs)');
     } else {
       router.replace('/onboarding');
@@ -121,6 +122,15 @@ export default function LoginScreen() {
       });
 
       if (error) {
+        if (isInvalidCredentialsError(error)) {
+          void modal.alert({
+            type: 'error',
+            title: 'Email hoặc mật khẩu chưa đúng',
+            message:
+              'Kiểm tra lại email và mật khẩu. Nếu bạn vừa đăng ký, hãy xác nhận email trước khi đăng nhập. Bạn cũng có thể dùng “Quên mật khẩu?” để đặt lại mật khẩu.',
+          });
+          return;
+        }
         void modal.alert({
           type: 'error',
           title: 'Đăng nhập thất bại',
