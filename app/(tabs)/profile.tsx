@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { RefreshControl } from 'react-native';
+import { RefreshControl, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { YStack, XStack, Text, Button, ScrollView, Spinner, View } from 'tamagui';
 import { useAppDispatch, useAppSelector } from '../../src/store';
@@ -9,17 +10,20 @@ import { setDailyCalorieGoal, setTodayMeals } from '../../src/store/slices/dietS
 import { CONFIG } from '../../src/constants/config';
 import { THEME } from '../../src/constants/theme';
 import { Profile } from '../../src/types/database';
-import { getProfile } from '../../src/services/profileService';
+import { deleteCurrentUserAccount, getProfile } from '../../src/services/profileService';
 import { supabase, logSupabaseError, logUnexpectedError } from '../../src/services/supabase';
 import { useAppModal } from '../../src/components/ModalProvider';
-import { ProfileHeader } from '../../src/components/profile/ProfileHeader';
-import { ProfileMenuList } from '../../src/components/profile/ProfileMenuList';
-import { EditProfileModal } from '../../src/components/profile/EditProfileModal';
+import { ProfileHeader } from './profile/ProfileHeader';
+import { ProfileMenuList } from './profile/ProfileMenuList';
+import { EditProfileModal } from './profile/EditProfileModal';
 
 export default function ProfileScreen() {
   const router = useRouter();
   const dispatch = useAppDispatch();
   const modal = useAppModal();
+  const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const horizontalPadding = width >= 700 ? 32 : width < 360 ? 12 : 16;
 
   // Lấy session & user từ Redux store (hoặc fallback auth)
   const { session, userId: authUserId } = useAppSelector((state) => state.auth);
@@ -30,6 +34,7 @@ export default function ProfileScreen() {
 
   const [refreshing, setRefreshing] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
   // Hàm tải dữ liệu hồ sơ từ Supabase
   const loadProfile = useCallback(
@@ -143,6 +148,51 @@ export default function ProfileScreen() {
     }
   };
 
+  const handleDeleteAccount = async () => {
+    const ok = await modal.confirm({
+      title: 'Xóa tài khoản?',
+      message: 'Thao tác này sẽ xóa tài khoản và dữ liệu liên quan. Bạn có chắc chắn muốn tiếp tục không?',
+      confirmText: 'Xóa tài khoản',
+      cancelText: 'Hủy',
+      destructive: true,
+    });
+    if (!ok) return;
+
+    try {
+      setIsDeletingAccount(true);
+      const { error } = await deleteCurrentUserAccount();
+      if (error) {
+        void modal.alert({
+          type: 'error',
+          title: 'Chưa thể xóa tài khoản',
+          message:
+            error.code === '42883'
+              ? 'Backend Supabase chưa triển khai RPC xóa tài khoản. Vui lòng thử lại sau khi hoàn tất phần backend.'
+              : error.message || 'Vui lòng thử lại sau.',
+        });
+        return;
+      }
+
+      // RPC đã xóa user; signOut chỉ dọn session local, lỗi ở đây không được chặn việc reset store.
+      await supabase.auth.signOut().catch((signOutError) => {
+        logUnexpectedError('auth.signOutAfterAccountDeletion', signOutError);
+      });
+      dispatch(clearAuth());
+      dispatch(clearProfile());
+      dispatch(setTodayMeals([]));
+      dispatch(setDailyCalorieGoal(CONFIG.DEFAULT_DAILY_CALORIE_GOAL));
+      router.replace('/login');
+    } catch (error) {
+      void modal.alert({
+        type: 'error',
+        title: 'Không thể xóa tài khoản',
+        message: logUnexpectedError('profile.deleteAccount', error),
+      });
+    } finally {
+      setIsDeletingAccount(false);
+    }
+  };
+
   // 1. TRẠNG THÁI ĐANG TẢI (LOADING STATE)
   if (isLoading && !profile && !refreshing) {
     return (
@@ -185,8 +235,11 @@ export default function ProfileScreen() {
     <YStack flex={1} backgroundColor={THEME.colors.background}>
       {/* TOP HEADER BAR (Khớp với hình mẫu docs/ui/06-profile/profile.png) */}
       <XStack
-        paddingHorizontal="$4"
-        paddingTop={16}
+        width="100%"
+        maxWidth={640}
+        alignSelf="center"
+        paddingHorizontal={horizontalPadding}
+        paddingTop={Math.max(insets.top, 12)}
         paddingBottom="$3"
         backgroundColor={THEME.colors.background}
         alignItems="center"
@@ -250,7 +303,11 @@ export default function ProfileScreen() {
       </XStack>
 
       <ScrollView
-        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40, paddingTop: 4 }}
+        contentContainerStyle={{
+          paddingHorizontal: horizontalPadding,
+          paddingBottom: Math.max(insets.bottom + 76, 40),
+          paddingTop: 4,
+        }}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -261,7 +318,7 @@ export default function ProfileScreen() {
           />
         }
       >
-        <YStack gap="$5">
+        <YStack width="100%" maxWidth={640} alignSelf="center" gap="$4">
           {/* 3. TRẠNG THÁI RỖNG (EMPTY STATE - nếu chưa có bản ghi profile) */}
           {!profile ? (
             <YStack
@@ -338,6 +395,21 @@ export default function ProfileScreen() {
                 Đăng xuất
               </Text>
             </XStack>
+          </Button>
+
+          <Button
+            backgroundColor="transparent"
+            borderWidth={1}
+            borderColor={THEME.colors.danger}
+            borderRadius={THEME.radius.full}
+            height={48}
+            disabled={isDeletingAccount}
+            opacity={isDeletingAccount ? 0.6 : 1}
+            onPress={handleDeleteAccount}
+          >
+            <Text fontSize={14} fontWeight="700" color={THEME.colors.danger}>
+              {isDeletingAccount ? 'Đang xử lý...' : 'Xóa tài khoản'}
+            </Text>
           </Button>
         </YStack>
       </ScrollView>

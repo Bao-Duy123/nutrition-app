@@ -28,7 +28,7 @@ export const authSlice = createSlice({
       state.session = action.payload;
       state.userId = action.payload?.user?.id || null;
       state.isAuthenticated = !!action.payload?.user;
-      state.isLoading = false;
+      // Session có thể đã có nhưng profile vẫn đang được khôi phục trong useAuth.
       state.error = null;
     },
     setProfile: (state, action: PayloadAction<Profile | null>) => {

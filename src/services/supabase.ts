@@ -66,6 +66,17 @@ const getSupabaseRemediation = (info: SupabaseErrorInfo): string => {
   return 'Dùng code/message/details/hint ở log để kiểm tra cấu hình Supabase Auth, schema hoặc policy liên quan.';
 };
 
+/**
+ * Supabase deliberately uses the same response for an unknown email and a
+ * wrong password. Keep this check in one place so screens can handle the
+ * expected user input error without reporting it as an app/system failure.
+ */
+export const isInvalidCredentialsError = (error: unknown): boolean => {
+  const info = getSupabaseErrorInfo(error);
+  const text = `${info.code ?? ''} ${info.message}`.toLowerCase();
+  return info.code === 'invalid_credentials' || text.includes('invalid login credentials');
+};
+
 export const formatSupabaseError = (error: unknown): string => {
   const info = getSupabaseErrorInfo(error);
   const fields = [
@@ -82,7 +93,10 @@ export const formatSupabaseError = (error: unknown): string => {
 export const logSupabaseError = (operation: string, error: unknown): string => {
   const info = getSupabaseErrorInfo(error);
   const remediation = getSupabaseRemediation(info);
-  console.error(`[Supabase][${operation}]`, {
+  const logMethod = isInvalidCredentialsError(error) || info.code === 'email_not_confirmed'
+    ? console.warn
+    : console.error;
+  logMethod(`[Supabase][${operation}]`, {
     code: info.code,
     status: info.status,
     message: info.message,

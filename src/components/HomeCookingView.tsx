@@ -318,6 +318,7 @@ export const HomeCookingView: React.FC<HomeCookingViewProps> = ({ onSaveMeal, is
           </Text>
           <Input
             flex={1}
+            borderRadius={0}
             borderWidth={0}
             backgroundColor="transparent"
             fontSize={14.5}

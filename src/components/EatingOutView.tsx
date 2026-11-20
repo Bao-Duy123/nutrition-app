@@ -230,6 +230,7 @@ export const EatingOutView: React.FC<EatingOutViewProps> = ({ onSaveMeal, isSavi
           </Text>
           <Input
             flex={1}
+            borderRadius={0}
             borderWidth={0}
             backgroundColor="transparent"
             fontSize={15}

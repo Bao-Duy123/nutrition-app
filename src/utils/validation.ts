@@ -72,3 +72,32 @@ export const isProfileOnboarded = (profile: {
   );
 };
 
+type AuthUserLike = {
+  app_metadata?: { provider?: string | null } | null;
+  identities?: Array<{ provider?: string | null }> | null;
+  user_metadata?: Record<string, unknown> | null;
+};
+
+const isGoogleUser = (user?: AuthUserLike | null): boolean =>
+  user?.app_metadata?.provider === 'google' ||
+  Boolean(user?.identities?.some((identity) => identity.provider === 'google'));
+
+const hasOnboardingMarker = (user?: AuthUserLike | null): boolean => {
+  if (user?.user_metadata?.onboarding_completed === true) return true;
+  const appProfile = user?.user_metadata?.app_profile;
+  if (!appProfile || typeof appProfile !== 'object') return false;
+  const profile = appProfile as Record<string, unknown>;
+  return ['age', 'height', 'current_weight', 'target_weight'].every(
+    (key) => Number.isFinite(Number(profile[key])) && Number(profile[key]) > 0
+  );
+};
+
+/** Google user mới không được coi là hoàn tất chỉ vì trigger DB tạo profile mặc định. */
+export const isUserOnboarded = (
+  profile: Parameters<typeof isProfileOnboarded>[0],
+  user?: AuthUserLike | null
+): boolean => {
+  if (!isProfileOnboarded(profile)) return false;
+  return !isGoogleUser(user) || hasOnboardingMarker(user);
+};
+

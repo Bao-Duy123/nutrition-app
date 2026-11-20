@@ -1,12 +1,13 @@
 import React, { useCallback, useEffect } from 'react';
-import { Alert, Image, TouchableOpacity } from 'react-native';
+import { Alert, Image, TouchableOpacity, useWindowDimensions } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Button, ScrollView, Spinner, Text, View, XStack, YStack } from 'tamagui';
 import { MacroRing } from '../../src/components/MacroRing';
 import { THEME } from '../../src/constants/theme';
-import { deleteMeal, getTodayDateString, getTodayMeals } from '../../src/services/supabase';
+import { addMeal, deleteMeal, getTodayDateString, getTodayMeals } from '../../src/services/supabase';
 import { useAppDispatch, useAppSelector } from '../../src/store';
 import {
+  addMealItem,
   removeMealItem,
   setDietError,
   setDietLoading,
@@ -14,9 +15,16 @@ import {
 } from '../../src/store/slices/dietSlice';
 import { DailyMeal } from '../../src/types/database';
 import { formatDisplayDate, getFriendlyDayName } from '../../src/utils/formatTime';
+import { useMealSuggestion } from '../../src/hooks/useMealSuggestion';
+import { MealSuggestionList } from '../../src/components/MealSuggestionList';
+import { MealSuggestion } from '../../src/hooks/useMealSuggestion';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AppIcon } from '../../src/components/AppIcon';
 
 export default function HomeScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const dispatch = useAppDispatch();
   const { userId, profile } = useAppSelector((state) => state.auth);
   const {
@@ -30,8 +38,12 @@ export default function HomeScreen() {
     error,
   } = useAppSelector((state) => state.diet);
   const today = getTodayDateString();
-  const calorieGoal = profile?.daily_calorie_goal || dailyCalorieGoal || 2000;
-  const progress = Math.min(100, Math.round((totalCalories / calorieGoal) * 100));
+  const calorieGoal = profile?.daily_calorie_goal ?? dailyCalorieGoal;
+  const progress = calorieGoal > 0
+    ? Math.min(100, Math.round((Math.max(0, totalCalories) / calorieGoal) * 100))
+    : 0;
+  const mealSuggestion = useMealSuggestion(todayMeals, calorieGoal);
+  const [addingSuggestionId, setAddingSuggestionId] = React.useState<number | null>(null);
 
   const fetchDailyData = useCallback(async () => {
     if (!userId) return;
@@ -77,13 +89,41 @@ export default function HomeScreen() {
 
   const greetingName = profile?.full_name?.trim().split(/\s+/).slice(-1)[0];
 
+  const handleAddSuggestedMeal = async (food: MealSuggestion) => {
+    if (!userId) {
+      Alert.alert('Cần đăng nhập', 'Vui lòng đăng nhập để thêm món vào nhật ký.');
+      return;
+    }
+    try {
+      setAddingSuggestionId(food.id);
+      const hour = new Date().getHours();
+      const mealTime = hour < 10 ? 'Sáng' : hour < 14 ? 'Trưa' : hour < 17 ? 'Ăn vặt' : 'Tối';
+      const { data, error: addError } = await addMeal(userId, food.id, 1, mealTime, today);
+      if (addError || !data) {
+        Alert.alert('Không thể thêm món', addError?.message || 'Vui lòng thử lại.');
+        return;
+      }
+      dispatch(addMealItem(data));
+      Alert.alert('Đã thêm món', `${food.name} đã được thêm vào ${mealTime.toLowerCase()}.`);
+      await fetchDailyData();
+    } catch (addError) {
+      Alert.alert('Không thể thêm món', addError instanceof Error ? addError.message : 'Vui lòng thử lại.');
+    } finally {
+      setAddingSuggestionId(null);
+    }
+  };
+
   return (
     <ScrollView
       backgroundColor={THEME.colors.background}
-      contentContainerStyle={{ paddingBottom: 36 }}
+      contentContainerStyle={{
+        paddingTop: Math.max(insets.top, 12),
+        paddingBottom: Math.max(insets.bottom + 76, 36),
+        paddingHorizontal: 0,
+      }}
       showsVerticalScrollIndicator={false}
     >
-      <YStack padding="$4" gap="$4">
+      <YStack width="100%" maxWidth={900} alignSelf="center" paddingHorizontal={width < 360 ? 12 : 16} gap="$4">
         <XStack justifyContent="space-between" alignItems="center">
           <XStack alignItems="center" gap="$3">
             <View
@@ -94,7 +134,7 @@ export default function HomeScreen() {
               alignItems="center"
               justifyContent="center"
             >
-              <Text fontSize={20} color={THEME.colors.primaryDark}>♨</Text>
+              <AppIcon name="flame-outline" size={20} color={THEME.colors.primaryDark} />
             </View>
             <YStack gap="$1">
               <Text fontSize={12} color={THEME.colors.textMuted}>
@@ -110,11 +150,11 @@ export default function HomeScreen() {
             backgroundColor={THEME.colors.primaryDark}
             onPress={() => router.push('/(tabs)/profile')}
           >
-            <Text color="#FFFFFF" fontSize={17}>♙</Text>
+            <AppIcon name="person-outline" size={17} color="#FFFFFF" />
           </Button>
         </XStack>
 
-        <XStack
+        {/* <XStack
           backgroundColor={THEME.colors.card}
           borderRadius={24}
           padding="$4"
@@ -122,7 +162,7 @@ export default function HomeScreen() {
           justifyContent="space-between"
         >
           <YStack gap="$1">
-            <Text fontSize={12} color={THEME.colors.textMuted}>⌖  Thành phố Hồ Chí Minh</Text>
+            <XStack alignItems="center" gap="$1"><AppIcon name="location-outline" size={14} color={THEME.colors.textMuted} /><Text fontSize={12} color={THEME.colors.textMuted}>Thành phố Hồ Chí Minh</Text></XStack>
             <Text fontSize={17} fontWeight="800" color={THEME.colors.textMain}>
               {getFriendlyDayName(today)}, {formatDisplayDate(today).replace('Ngày ', '')}
             </Text>
@@ -135,9 +175,9 @@ export default function HomeScreen() {
             alignItems="center"
             justifyContent="center"
           >
-            <Text fontSize={19} color={THEME.colors.primaryDark}>▣</Text>
+            <AppIcon name="calendar-outline" size={19} color={THEME.colors.primaryDark} />
           </View>
-        </XStack>
+        </XStack> */}
 
         <MacroRing
           calories={totalCalories}
@@ -145,6 +185,17 @@ export default function HomeScreen() {
           carbs={totalCarbs}
           protein={totalProtein}
           fat={totalFat}
+        />
+
+        <MealSuggestionList
+          suggestions={mealSuggestion.suggestions}
+          summary={mealSuggestion.summary}
+          loading={mealSuggestion.loading}
+          error={mealSuggestion.error}
+          empty={mealSuggestion.empty}
+          onGenerate={mealSuggestion.generate}
+          onAdd={handleAddSuggestedMeal}
+          addingId={addingSuggestionId}
         />
 
         <XStack justifyContent="space-between" alignItems="center" paddingHorizontal="$1">
@@ -196,7 +247,7 @@ export default function HomeScreen() {
             alignItems="center"
             gap="$2"
           >
-            <Text fontSize={34}>🍽️</Text>
+            <AppIcon name="restaurant-outline" size={34} color={THEME.colors.textMuted} />
             <Text fontSize={15} fontWeight="700" color={THEME.colors.textMain}>
               Chưa có bữa ăn hôm nay
             </Text>
@@ -213,7 +264,6 @@ export default function HomeScreen() {
                 Number(meal.foods?.calories || meal.calories || 0) * Number(meal.quantity || 1)
               );
               const imageUrl = meal.foods?.image_url || meal.image_url;
-              const iconEmoji = meal.foods?.icon || '🍲';
 
               return (
                 <XStack
@@ -240,7 +290,7 @@ export default function HomeScreen() {
                         resizeMode="cover"
                       />
                     ) : (
-                      <Text fontSize={25}>{iconEmoji}</Text>
+                      <AppIcon name="restaurant-outline" size={25} color={THEME.colors.primaryDark} />
                     )}
                   </View>
                   <YStack flex={1} gap="$1">
@@ -266,7 +316,7 @@ export default function HomeScreen() {
                       alignItems="center"
                       justifyContent="center"
                     >
-                      <Text fontSize={14} color="#EF4444">🗑️</Text>
+                      <AppIcon name="trash-outline" size={16} color="#EF4444" />
                     </View>
                   </TouchableOpacity>
                 </XStack>
@@ -303,7 +353,7 @@ export default function HomeScreen() {
             alignItems="center"
             justifyContent="center"
           >
-            <Text color="#FFFFFF" fontSize={18}>✓</Text>
+          <AppIcon name="checkmark" size={18} color="#FFFFFF" />
           </View>
           <YStack flex={1} gap="$1">
             <Text fontSize={12} fontWeight="800" color={THEME.colors.textMain}>

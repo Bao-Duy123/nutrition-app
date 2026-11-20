@@ -2,6 +2,7 @@ import React from 'react';
 import { Tabs } from 'expo-router';
 import { Text } from 'tamagui';
 import { THEME } from '../../src/constants/theme';
+import { AppIcon } from '../../src/components/AppIcon';
 
 export default function TabLayout() {
   return (
@@ -29,9 +30,7 @@ export default function TabLayout() {
         options={{
           title: 'Tổng quan',
           tabBarLabel: 'Tổng quan',
-          tabBarIcon: ({ color, focused }) => (
-            <Text fontSize={focused ? 20 : 18}>🏠</Text>
-          ),
+          tabBarIcon: ({ color, focused, size }) => <AppIcon name={focused ? 'home' : 'home-outline'} color={color} size={size} />,
         }}
       />
       <Tabs.Screen
@@ -39,9 +38,7 @@ export default function TabLayout() {
         options={{
           title: 'Nhật ký',
           tabBarLabel: 'Nhật ký',
-          tabBarIcon: ({ color, focused }) => (
-            <Text fontSize={focused ? 20 : 18}>📖</Text>
-          ),
+          tabBarIcon: ({ color, focused, size }) => <AppIcon name={focused ? 'book' : 'book-outline'} color={color} size={size} />,
         }}
       />
       <Tabs.Screen
@@ -49,9 +46,7 @@ export default function TabLayout() {
         options={{
           title: 'Mục tiêu',
           tabBarLabel: 'Mục tiêu',
-          tabBarIcon: ({ color, focused }) => (
-            <Text fontSize={focused ? 20 : 18}>🎯</Text>
-          ),
+          tabBarIcon: ({ color, focused, size }) => <AppIcon name={focused ? 'flag' : 'flag-outline'} color={color} size={size} />,
         }}
       />
       <Tabs.Screen
@@ -59,9 +54,7 @@ export default function TabLayout() {
         options={{
           title: 'Cá nhân',
           tabBarLabel: 'Cá nhân',
-          tabBarIcon: ({ color, focused }) => (
-            <Text fontSize={focused ? 20 : 18}>👤</Text>
-          ),
+          tabBarIcon: ({ color, focused, size }) => <AppIcon name={focused ? 'person' : 'person-outline'} color={color} size={size} />,
         }}
       />
     </Tabs>

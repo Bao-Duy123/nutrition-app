@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'expo-router';
-import { Platform } from 'react-native';
+import { Image, Platform } from 'react-native';
 import { Button, ScrollView, Text, View, XStack, YStack } from 'tamagui';
 import {Input} from '../src/components/AppInput'
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -14,6 +14,7 @@ import { THEME } from '../src/constants/theme';
 import {
   ensureUserProfile,
   formatSupabaseError,
+  isInvalidCredentialsError,
   logSupabaseError,
   logUnexpectedError,
   supabase,
@@ -24,7 +25,7 @@ import { setDailyCalorieGoal } from '../src/store/slices/dietSlice';
 import { useAppModal } from '../src/components/ModalProvider';
 import { ForgotPasswordModal } from '../src/components/ForgotPasswordModal';
 import GeminiTestBox from "../src/components/GeminiTestBox";
-import { isProfileOnboarded } from '../src/utils/validation';
+import { isUserOnboarded } from '../src/utils/validation';
 
 
 WebBrowser.maybeCompleteAuthSession();
@@ -86,7 +87,7 @@ export default function LoginScreen() {
     }
 
     // Kiểm tra xem người dùng đã hoàn thành onboarding / nhập thông số sức khỏe chưa
-    if (isProfileOnboarded(profile)) {
+    if (isUserOnboarded(profile, session.user)) {
       router.replace('/(tabs)');
     } else {
       router.replace('/onboarding');
@@ -121,6 +122,15 @@ export default function LoginScreen() {
       });
 
       if (error) {
+        if (isInvalidCredentialsError(error)) {
+          void modal.alert({
+            type: 'error',
+            title: 'Email hoặc mật khẩu chưa đúng',
+            message:
+              'Kiểm tra lại email và mật khẩu. Nếu bạn vừa đăng ký, hãy xác nhận email trước khi đăng nhập. Bạn cũng có thể dùng “Quên mật khẩu?” để đặt lại mật khẩu.',
+          });
+          return;
+        }
         void modal.alert({
           type: 'error',
           title: 'Đăng nhập thất bại',
@@ -284,7 +294,7 @@ export default function LoginScreen() {
             </View>
             <Text fontSize={18} fontWeight="800" color={THEME.colors.textMain}>Sign In</Text>
           </XStack>
-          <Button
+          {/* <Button
             circular
             width={40}
             height={40}
@@ -292,11 +302,11 @@ export default function LoginScreen() {
             onPress={() => router.push('/register')}
           >
             <Text color="#FFFFFF" fontSize={16}>♙</Text>
-          </Button>
+          </Button> */}
         </XStack>
 
         <YStack alignItems="center" gap="$2" paddingTop="$1">
-          <View
+          {/* <View
             width={64}
             height={64}
             borderRadius={20}
@@ -305,16 +315,14 @@ export default function LoginScreen() {
             justifyContent="center"
           >
             <Text color="#FFFFFF" fontSize={34}>♨</Text>
-          </View>
+          </View> */}
           <View
             paddingHorizontal="$3"
             paddingVertical="$1"
             borderRadius={THEME.radius.full}
             backgroundColor={THEME.colors.primaryLight}
           >
-            <Text color={THEME.colors.primaryDark} fontSize={12} fontWeight="700">
-              ● Vital Nutrition Pro
-            </Text>
+            
           </View>
           <Text fontSize={26} fontWeight="800" color={THEME.colors.textMain} textAlign="center">
             Chào mừng trở lại!
@@ -435,7 +443,7 @@ export default function LoginScreen() {
           disabled={loading}
           variant="outline"
           size="medium"
-          icon={<Text color="#4285F4" fontSize={19} fontWeight="800">G</Text>}
+          icon={<Image source={require('../assets/Google__G__logo.svg.webp')} style={{ width: 20, height: 20 }} resizeMode="contain" />}
         />
 
         <XStack alignItems="center" justifyContent="center" gap="$2">
@@ -459,7 +467,7 @@ export default function LoginScreen() {
         >
 
           {/* {__DEV__ && <GeminiTestBox />} */}
-           <GeminiTestBox />
+           {/* <GeminiTestBox /> */}
 
         </View>
         </YStack>
