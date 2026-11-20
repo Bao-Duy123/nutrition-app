@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'expo-router';
-import { Platform } from 'react-native';
+import { Image, Platform } from 'react-native';
 import { Button, ScrollView, Text, View, XStack, YStack } from 'tamagui';
 import {Input} from '../src/components/AppInput'
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -294,7 +294,7 @@ export default function LoginScreen() {
             </View>
             <Text fontSize={18} fontWeight="800" color={THEME.colors.textMain}>Sign In</Text>
           </XStack>
-          <Button
+          {/* <Button
             circular
             width={40}
             height={40}
@@ -302,11 +302,11 @@ export default function LoginScreen() {
             onPress={() => router.push('/register')}
           >
             <Text color="#FFFFFF" fontSize={16}>♙</Text>
-          </Button>
+          </Button> */}
         </XStack>
 
         <YStack alignItems="center" gap="$2" paddingTop="$1">
-          <View
+          {/* <View
             width={64}
             height={64}
             borderRadius={20}
@@ -315,16 +315,14 @@ export default function LoginScreen() {
             justifyContent="center"
           >
             <Text color="#FFFFFF" fontSize={34}>♨</Text>
-          </View>
+          </View> */}
           <View
             paddingHorizontal="$3"
             paddingVertical="$1"
             borderRadius={THEME.radius.full}
             backgroundColor={THEME.colors.primaryLight}
           >
-            <Text color={THEME.colors.primaryDark} fontSize={12} fontWeight="700">
-              ● Vital Nutrition Pro
-            </Text>
+            
           </View>
           <Text fontSize={26} fontWeight="800" color={THEME.colors.textMain} textAlign="center">
             Chào mừng trở lại!
@@ -445,7 +443,7 @@ export default function LoginScreen() {
           disabled={loading}
           variant="outline"
           size="medium"
-          icon={<Text color="#4285F4" fontSize={19} fontWeight="800">G</Text>}
+          icon={<Image source={require('../assets/Google__G__logo.svg.webp')} style={{ width: 20, height: 20 }} resizeMode="contain" />}
         />
 
         <XStack alignItems="center" justifyContent="center" gap="$2">
@@ -469,7 +467,7 @@ export default function LoginScreen() {
         >
 
           {/* {__DEV__ && <GeminiTestBox />} */}
-           <GeminiTestBox />
+           {/* <GeminiTestBox /> */}
 
         </View>
         </YStack>

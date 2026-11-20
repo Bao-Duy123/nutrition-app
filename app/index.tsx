@@ -33,7 +33,7 @@ export default function InitialScreen() {
     >
       <Text fontSize={48}>🥗</Text>
       <Text fontSize={24} fontWeight="800" color={THEME.colors.primaryDark}>
-        Nutrition Tracker
+        Nutrition 
       </Text>
       <Spinner size="large" color={THEME.colors.primary} />
       <Text fontSize={14} color={THEME.colors.textMuted}>

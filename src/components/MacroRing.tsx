@@ -4,6 +4,7 @@ import Svg, { Circle, Path } from 'react-native-svg';
 import { Text, View, XStack, YStack } from 'tamagui';
 import { calculateMacroGoals } from '../constants/macroGoals';
 import { THEME } from '../constants/theme';
+import { AppIcon } from './AppIcon';
 
 interface MacroRingProps {
   calories: number;
@@ -79,7 +80,7 @@ const MacroProgressBar: React.FC<MacroProgressBarProps> = ({ label, value, goal,
       backgroundColor={THEME.colors.card}
     >
       <XStack alignItems="center" gap="$2">
-        <Text fontSize={17}>{icon}</Text>
+        <AppIcon name={icon as any} size={17} color={color} />
         <Text fontSize={13} fontWeight="800" color={THEME.colors.textMain}>{label}</Text>
       </XStack>
       <XStack alignItems="center" justifyContent="space-between" gap="$1">
@@ -219,9 +220,9 @@ export const MacroRing: React.FC<MacroRingProps> = ({
         </View>
 
         <XStack width="100%" gap="$2" alignItems="stretch">
-          <MacroProgressBar label="Carb" icon="🌾" value={carbs} goal={macroGoals.carbs} color={THEME.colors.calories} />
-          <MacroProgressBar label="Protein" icon="💪" value={protein} goal={macroGoals.protein} color={THEME.colors.primary} />
-          <MacroProgressBar label="Fat" icon="💧" value={fat} goal={macroGoals.fat} color={THEME.colors.protein} />
+          <MacroProgressBar label="Carb" icon="leaf-outline" value={carbs} goal={macroGoals.carbs} color={THEME.colors.calories} />
+          <MacroProgressBar label="Protein" icon="barbell-outline" value={protein} goal={macroGoals.protein} color={THEME.colors.primary} />
+          <MacroProgressBar label="Fat" icon="water-outline" value={fat} goal={macroGoals.fat} color={THEME.colors.protein} />
         </XStack>
       </YStack>
     </YStack>

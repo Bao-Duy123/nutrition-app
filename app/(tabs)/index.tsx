@@ -19,6 +19,7 @@ import { useMealSuggestion } from '../../src/hooks/useMealSuggestion';
 import { MealSuggestionList } from '../../src/components/MealSuggestionList';
 import { MealSuggestion } from '../../src/hooks/useMealSuggestion';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AppIcon } from '../../src/components/AppIcon';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -133,7 +134,7 @@ export default function HomeScreen() {
               alignItems="center"
               justifyContent="center"
             >
-              <Text fontSize={20} color={THEME.colors.primaryDark}>♨</Text>
+              <AppIcon name="flame-outline" size={20} color={THEME.colors.primaryDark} />
             </View>
             <YStack gap="$1">
               <Text fontSize={12} color={THEME.colors.textMuted}>
@@ -149,7 +150,7 @@ export default function HomeScreen() {
             backgroundColor={THEME.colors.primaryDark}
             onPress={() => router.push('/(tabs)/profile')}
           >
-            <Text color="#FFFFFF" fontSize={17}>♙</Text>
+            <AppIcon name="person-outline" size={17} color="#FFFFFF" />
           </Button>
         </XStack>
 
@@ -161,7 +162,7 @@ export default function HomeScreen() {
           justifyContent="space-between"
         >
           <YStack gap="$1">
-            <Text fontSize={12} color={THEME.colors.textMuted}>⌖  Thành phố Hồ Chí Minh</Text>
+            <XStack alignItems="center" gap="$1"><AppIcon name="location-outline" size={14} color={THEME.colors.textMuted} /><Text fontSize={12} color={THEME.colors.textMuted}>Thành phố Hồ Chí Minh</Text></XStack>
             <Text fontSize={17} fontWeight="800" color={THEME.colors.textMain}>
               {getFriendlyDayName(today)}, {formatDisplayDate(today).replace('Ngày ', '')}
             </Text>
@@ -174,7 +175,7 @@ export default function HomeScreen() {
             alignItems="center"
             justifyContent="center"
           >
-            <Text fontSize={19} color={THEME.colors.primaryDark}>▣</Text>
+            <AppIcon name="calendar-outline" size={19} color={THEME.colors.primaryDark} />
           </View>
         </XStack> */}
 
@@ -246,7 +247,7 @@ export default function HomeScreen() {
             alignItems="center"
             gap="$2"
           >
-            <Text fontSize={34}>🍽️</Text>
+            <AppIcon name="restaurant-outline" size={34} color={THEME.colors.textMuted} />
             <Text fontSize={15} fontWeight="700" color={THEME.colors.textMain}>
               Chưa có bữa ăn hôm nay
             </Text>
@@ -263,7 +264,6 @@ export default function HomeScreen() {
                 Number(meal.foods?.calories || meal.calories || 0) * Number(meal.quantity || 1)
               );
               const imageUrl = meal.foods?.image_url || meal.image_url;
-              const iconEmoji = meal.foods?.icon || '🍲';
 
               return (
                 <XStack
@@ -290,7 +290,7 @@ export default function HomeScreen() {
                         resizeMode="cover"
                       />
                     ) : (
-                      <Text fontSize={25}>{iconEmoji}</Text>
+                      <AppIcon name="restaurant-outline" size={25} color={THEME.colors.primaryDark} />
                     )}
                   </View>
                   <YStack flex={1} gap="$1">
@@ -316,7 +316,7 @@ export default function HomeScreen() {
                       alignItems="center"
                       justifyContent="center"
                     >
-                      <Text fontSize={14} color="#EF4444">🗑️</Text>
+                      <AppIcon name="trash-outline" size={16} color="#EF4444" />
                     </View>
                   </TouchableOpacity>
                 </XStack>
@@ -353,7 +353,7 @@ export default function HomeScreen() {
             alignItems="center"
             justifyContent="center"
           >
-            <Text color="#FFFFFF" fontSize={18}>✓</Text>
+          <AppIcon name="checkmark" size={18} color="#FFFFFF" />
           </View>
           <YStack flex={1} gap="$1">
             <Text fontSize={12} fontWeight="800" color={THEME.colors.textMain}>
