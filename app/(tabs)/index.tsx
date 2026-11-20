@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect } from 'react';
-import { Alert, Image, TouchableOpacity } from 'react-native';
+import { Alert, Image, TouchableOpacity, useWindowDimensions } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Button, ScrollView, Spinner, Text, View, XStack, YStack } from 'tamagui';
 import { MacroRing } from '../../src/components/MacroRing';
@@ -18,9 +18,12 @@ import { formatDisplayDate, getFriendlyDayName } from '../../src/utils/formatTim
 import { useMealSuggestion } from '../../src/hooks/useMealSuggestion';
 import { MealSuggestionList } from '../../src/components/MealSuggestionList';
 import { MealSuggestion } from '../../src/hooks/useMealSuggestion';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function HomeScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const dispatch = useAppDispatch();
   const { userId, profile } = useAppSelector((state) => state.auth);
   const {
@@ -112,10 +115,14 @@ export default function HomeScreen() {
   return (
     <ScrollView
       backgroundColor={THEME.colors.background}
-      contentContainerStyle={{ paddingBottom: 36 }}
+      contentContainerStyle={{
+        paddingTop: Math.max(insets.top, 12),
+        paddingBottom: Math.max(insets.bottom + 76, 36),
+        paddingHorizontal: 0,
+      }}
       showsVerticalScrollIndicator={false}
     >
-      <YStack padding="$4" gap="$4">
+      <YStack width="100%" maxWidth={900} alignSelf="center" paddingHorizontal={width < 360 ? 12 : 16} gap="$4">
         <XStack justifyContent="space-between" alignItems="center">
           <XStack alignItems="center" gap="$3">
             <View

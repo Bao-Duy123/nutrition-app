@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { RefreshControl, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { YStack, XStack, Text, Button, ScrollView, Spinner, View } from 'tamagui';
 import { useAppDispatch, useAppSelector } from '../../src/store';
@@ -21,6 +22,8 @@ export default function ProfileScreen() {
   const dispatch = useAppDispatch();
   const modal = useAppModal();
   const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const horizontalPadding = width >= 700 ? 32 : width < 360 ? 12 : 16;
 
   // Lấy session & user từ Redux store (hoặc fallback auth)
   const { session, userId: authUserId } = useAppSelector((state) => state.auth);
@@ -235,8 +238,8 @@ export default function ProfileScreen() {
         width="100%"
         maxWidth={640}
         alignSelf="center"
-        paddingHorizontal="$4"
-        paddingTop={16}
+        paddingHorizontal={horizontalPadding}
+        paddingTop={Math.max(insets.top, 12)}
         paddingBottom="$3"
         backgroundColor={THEME.colors.background}
         alignItems="center"
@@ -301,8 +304,8 @@ export default function ProfileScreen() {
 
       <ScrollView
         contentContainerStyle={{
-          paddingHorizontal: width >= 700 ? 32 : 16,
-          paddingBottom: 40,
+          paddingHorizontal: horizontalPadding,
+          paddingBottom: Math.max(insets.bottom + 76, 40),
           paddingTop: 4,
         }}
         showsVerticalScrollIndicator={false}
@@ -315,7 +318,7 @@ export default function ProfileScreen() {
           />
         }
       >
-        <YStack width="100%" maxWidth={640} alignSelf="center" gap="$5">
+        <YStack width="100%" maxWidth={640} alignSelf="center" gap="$4">
           {/* 3. TRẠNG THÁI RỖNG (EMPTY STATE - nếu chưa có bản ghi profile) */}
           {!profile ? (
             <YStack

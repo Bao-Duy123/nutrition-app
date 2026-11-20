@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, Easing, Platform } from 'react-native';
+import { Animated, Easing } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { Text, View, XStack, YStack } from 'tamagui';
 import { calculateMacroGoals } from '../constants/macroGoals';
@@ -126,15 +126,23 @@ export const MacroRing: React.FC<MacroRingProps> = ({
   const exceededCalories = Math.max(0, safeCalories - safeGoal);
   const ringColor = getCalorieColor(caloriePercentage);
   const ringAnimation = useRef(new Animated.Value(0)).current;
+  const [animatedProgress, setAnimatedProgress] = React.useState(0);
   const macroGoals = calculateMacroGoals(safeGoal);
 
   useEffect(() => {
-    Animated.timing(ringAnimation, {
+    const listenerId = ringAnimation.addListener(({ value }) => setAnimatedProgress(value));
+    ringAnimation.setValue(0);
+    const animation = Animated.timing(ringAnimation, {
       toValue: ringProgress,
       duration: ANIMATION_DURATION,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: false,
-    }).start();
+    });
+    animation.start();
+    return () => {
+      animation.stop();
+      ringAnimation.removeListener(listenerId);
+    };
   }, [ringProgress, ringAnimation]);
 
   return (
@@ -161,12 +169,11 @@ export const MacroRing: React.FC<MacroRingProps> = ({
               fill={THEME.colors.card}
             />
             <Path
-              d={createArcPath(ringProgress)}
+              d={createArcPath(animatedProgress)}
               stroke={ringColor}
               strokeWidth={RING_STROKE_WIDTH}
               strokeLinecap="round"
               fill="transparent"
-              opacity={1}
             />
           </Svg>
           <YStack
