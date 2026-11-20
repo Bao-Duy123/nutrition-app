@@ -4,9 +4,10 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { Button, ScrollView, Spinner, Text, View, XStack, YStack } from 'tamagui';
 import { MacroRing } from '../../src/components/MacroRing';
 import { THEME } from '../../src/constants/theme';
-import { deleteMeal, getTodayDateString, getTodayMeals } from '../../src/services/supabase';
+import { addMeal, deleteMeal, getTodayDateString, getTodayMeals } from '../../src/services/supabase';
 import { useAppDispatch, useAppSelector } from '../../src/store';
 import {
+  addMealItem,
   removeMealItem,
   setDietError,
   setDietLoading,
@@ -14,6 +15,9 @@ import {
 } from '../../src/store/slices/dietSlice';
 import { DailyMeal } from '../../src/types/database';
 import { formatDisplayDate, getFriendlyDayName } from '../../src/utils/formatTime';
+import { useMealSuggestion } from '../../src/hooks/useMealSuggestion';
+import { MealSuggestionList } from '../../src/components/MealSuggestionList';
+import { MealSuggestion } from '../../src/hooks/useMealSuggestion';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -32,6 +36,8 @@ export default function HomeScreen() {
   const today = getTodayDateString();
   const calorieGoal = profile?.daily_calorie_goal || dailyCalorieGoal || 2000;
   const progress = Math.min(100, Math.round((totalCalories / calorieGoal) * 100));
+  const mealSuggestion = useMealSuggestion(todayMeals, calorieGoal);
+  const [addingSuggestionId, setAddingSuggestionId] = React.useState<number | null>(null);
 
   const fetchDailyData = useCallback(async () => {
     if (!userId) return;
@@ -76,6 +82,30 @@ export default function HomeScreen() {
   };
 
   const greetingName = profile?.full_name?.trim().split(/\s+/).slice(-1)[0];
+
+  const handleAddSuggestedMeal = async (food: MealSuggestion) => {
+    if (!userId) {
+      Alert.alert('Cần đăng nhập', 'Vui lòng đăng nhập để thêm món vào nhật ký.');
+      return;
+    }
+    try {
+      setAddingSuggestionId(food.id);
+      const hour = new Date().getHours();
+      const mealTime = hour < 10 ? 'Sáng' : hour < 14 ? 'Trưa' : hour < 17 ? 'Ăn vặt' : 'Tối';
+      const { data, error: addError } = await addMeal(userId, food.id, 1, mealTime, today);
+      if (addError || !data) {
+        Alert.alert('Không thể thêm món', addError?.message || 'Vui lòng thử lại.');
+        return;
+      }
+      dispatch(addMealItem(data));
+      Alert.alert('Đã thêm món', `${food.name} đã được thêm vào ${mealTime.toLowerCase()}.`);
+      await fetchDailyData();
+    } catch (addError) {
+      Alert.alert('Không thể thêm món', addError instanceof Error ? addError.message : 'Vui lòng thử lại.');
+    } finally {
+      setAddingSuggestionId(null);
+    }
+  };
 
   return (
     <ScrollView
@@ -145,6 +175,17 @@ export default function HomeScreen() {
           carbs={totalCarbs}
           protein={totalProtein}
           fat={totalFat}
+        />
+
+        <MealSuggestionList
+          suggestions={mealSuggestion.suggestions}
+          summary={mealSuggestion.summary}
+          loading={mealSuggestion.loading}
+          error={mealSuggestion.error}
+          empty={mealSuggestion.empty}
+          onGenerate={mealSuggestion.generate}
+          onAdd={handleAddSuggestedMeal}
+          addingId={addingSuggestionId}
         />
 
         <XStack justifyContent="space-between" alignItems="center" paddingHorizontal="$1">
