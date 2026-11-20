@@ -1,18 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, ScrollView, Platform } from 'react-native';
 import { YStack, XStack, Text, Button, View, Spinner } from 'tamagui';
-import {Input} from '../AppInput'
-import { THEME } from '../../constants/theme';
-import { Profile } from '../../types/database';
+import {Input} from '../../../src/components/AppInput'
+import { THEME } from '../../../src/constants/theme';
+import { Profile } from '../../../src/types/database';
 import {
   ACTIVITY_LEVELS,
   computeNutritionMetrics,
   calculateBMR,
   calculateTDEE,
   calculateDailyCalorieGoal,
-} from '../../utils/nutrition';
-import { upsertProfile } from '../../services/profileService';
-import { showAlert } from '../../utils/showAlert';
+} from '../../../src/utils/nutrition';
+import { upsertProfile } from '../../../src/services/profileService';
+import { showAlert } from '../../../src/utils/showAlert';
 
 interface EditProfileModalProps {
   visible: boolean;
@@ -604,3 +604,5 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
     </Modal>
   );
 };
+
+export default EditProfileModal;

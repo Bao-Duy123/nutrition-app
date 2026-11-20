@@ -1,8 +1,8 @@
 import React from 'react';
 import { YStack, XStack, Text, View, Image } from 'tamagui';
-import { THEME } from '../../constants/theme';
-import { Profile } from '../../types/database';
-import { showAlert } from '../../utils/showAlert';
+import { THEME } from '../../../src/constants/theme';
+import { Profile } from '../../../src/types/database';
+import { showAlert } from '../../../src/utils/showAlert';
 
 interface ProfileHeaderProps {
   profile: Profile | null;
@@ -224,3 +224,5 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
     </YStack>
   );
 };
+
+export default ProfileHeader;

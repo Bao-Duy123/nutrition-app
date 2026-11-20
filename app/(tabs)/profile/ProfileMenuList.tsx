@@ -1,7 +1,7 @@
 import React from 'react';
 import { YStack, XStack, Text, View } from 'tamagui';
-import { THEME } from '../../constants/theme';
-import { Profile } from '../../types/database';
+import { THEME } from '../../../src/constants/theme';
+import { Profile } from '../../../src/types/database';
 
 interface ProfileMenuListProps {
   profile: Profile | null;
@@ -195,3 +195,5 @@ export const ProfileMenuList: React.FC<ProfileMenuListProps> = ({
     </YStack>
   );
 };
+
+export default ProfileMenuList;

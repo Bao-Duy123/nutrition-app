@@ -87,3 +87,21 @@ export const updateProfile = async (
     return { data: null, error: err };
   }
 };
+
+/**
+ * Gọi RPC backend để xóa auth user và dữ liệu liên quan.
+ * Hàm SQL/RPC sẽ được triển khai trên Supabase; client không dùng service-role key.
+ */
+export const deleteCurrentUserAccount = async (): Promise<{ error: any | null }> => {
+  try {
+    const { error } = await supabase.rpc('delete_user_account');
+    if (error) {
+      logSupabaseError('profileService.deleteCurrentUserAccount', error);
+      return { error };
+    }
+    return { error: null };
+  } catch (error) {
+    logUnexpectedError('profileService.deleteCurrentUserAccount', error);
+    return { error };
+  }
+};

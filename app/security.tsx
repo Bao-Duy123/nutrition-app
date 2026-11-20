@@ -367,11 +367,9 @@ export default function SecurityScreen() {
                     <Text fontSize={26}>ℹ️</Text>
                   </View>
                   <Text fontSize={16} fontWeight="700" color={THEME.colors.textMain} textAlign="center">
-                    Tài khoản đăng nhập mạng xã hội
+                    Tài khoản đăng nhập mạng xã hội không thêm đổi mật khẩu
                   </Text>
-                  <Text fontSize={14} color={THEME.colors.textMuted} textAlign="center" lineHeight={20}>
-                    Tài khoản của bạn được liên kết qua {provider || 'nhà cung cấp bên thứ ba'}. Tài khoản này không sử dụng mật khẩu riêng để đăng nhập.
-                  </Text>
+
                   <Button
                     backgroundColor="#F1F5F9"
                     borderRadius={THEME.radius.md}
