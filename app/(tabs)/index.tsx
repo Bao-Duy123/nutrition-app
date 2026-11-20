@@ -34,8 +34,10 @@ export default function HomeScreen() {
     error,
   } = useAppSelector((state) => state.diet);
   const today = getTodayDateString();
-  const calorieGoal = profile?.daily_calorie_goal || dailyCalorieGoal || 2000;
-  const progress = Math.min(100, Math.round((totalCalories / calorieGoal) * 100));
+  const calorieGoal = profile?.daily_calorie_goal ?? dailyCalorieGoal;
+  const progress = calorieGoal > 0
+    ? Math.min(100, Math.round((Math.max(0, totalCalories) / calorieGoal) * 100))
+    : 0;
   const mealSuggestion = useMealSuggestion(todayMeals, calorieGoal);
   const [addingSuggestionId, setAddingSuggestionId] = React.useState<number | null>(null);
 
@@ -144,7 +146,7 @@ export default function HomeScreen() {
           </Button>
         </XStack>
 
-        <XStack
+        {/* <XStack
           backgroundColor={THEME.colors.card}
           borderRadius={24}
           padding="$4"
@@ -167,7 +169,7 @@ export default function HomeScreen() {
           >
             <Text fontSize={19} color={THEME.colors.primaryDark}>▣</Text>
           </View>
-        </XStack>
+        </XStack> */}
 
         <MacroRing
           calories={totalCalories}
